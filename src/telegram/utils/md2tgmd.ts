@@ -1,6 +1,7 @@
 /* eslint-disable regexp/no-super-linear-backtracking */
 const escapeChars = /[_*[\]()\\~`>#+\-=|{}.!]/g;
 export const SEGMENTATION_MARK = '//SEGMENTATIONMARK//';
+export const TRAILING_CUSTOM_EMOJI_ANCHOR = 'MOSSFINAL7F41C8';
 export const escapedChars = {
     '\\*': 'ESCAPEASTERISK',
     '\\_': 'ESCAPEUNDERSCORE',

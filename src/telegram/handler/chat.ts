@@ -16,7 +16,7 @@ import { fetchWithTimeout } from '../../utils/fetch';
 import { blobToBase64String } from '../../utils/image';
 import { convertAudio } from '../../utils/others/audio';
 import { createTelegramBotAPI } from '../api';
-import { escape, SEGMENTATION_MARK } from '../utils/md2tgmd';
+import { escape, SEGMENTATION_MARK, TRAILING_CUSTOM_EMOJI_ANCHOR } from '../utils/md2tgmd';
 import { MessageSender, sendAction, TelegraphSender } from '../utils/send';
 import { downloadTelegramFiles, getTelegramFile, waitUntil } from '../utils/tg_utils';
 import { createThinkingIndicator } from '../utils/thinking';
@@ -326,14 +326,22 @@ export function OnStreamHander(sender: MessageSender | ChosenInlineSender, conte
         if (isSendTelegraph(text)) {
             return sendTelegraph(telegraphContext(true, false), question || 'Redo Question', text);
         }
+        const trailingCustomEmojiId = type === 'chat'
+            && /^\d+$/.test(ENV.TELEGRAM_THINKING_CUSTOM_EMOJI_ID?.trim() || '')
+            ? ENV.TELEGRAM_THINKING_CUSTOM_EMOJI_ID.trim()
+            : undefined;
+        if (trailingCustomEmojiId) {
+            const content = text.trimEnd();
+            text = content.endsWith('```')
+                ? `${content}\n${TRAILING_CUSTOM_EMOJI_ANCHOR}`
+                : `${content}${TRAILING_CUSTOM_EMOJI_ANCHOR}`;
+        }
         const data = context && needLog ? mergeLogMessages(text, context.USER_CONFIG) : text;
         log.info(`sent message ids: ${isMessageSender ? sender.context.sentMessageIds : sender.context.inline_message_id}`);
         expandParams.addQuote = addQuotePrerequisites && data.length > ENV.ADD_QUOTE_LIMIT;
         const finalExpandParams = {
             ...expandParams,
-            trailingCustomEmojiId: type === 'chat'
-                ? ENV.TELEGRAM_THINKING_CUSTOM_EMOJI_ID || undefined
-                : undefined,
+            trailingCustomEmojiId,
         };
         let maxFetchFailedTimes = 3;
         while (true) {
@@ -635,7 +643,7 @@ function mergeLogMessages(text: string, config: AgentUserConfig | undefined): st
     if (ENV.LOG_POSITION_ON_TOP) {
         return `${footer}\n\n${SEGMENTATION_MARK}\n${content}`;
     }
-    return `${content}\n\n${SEGMENTATION_MARK}\n${footer}`;
+    return `${content}\n${SEGMENTATION_MARK}\n${footer}`;
 }
 
 // v5: Breaking change in file type extraction logic.

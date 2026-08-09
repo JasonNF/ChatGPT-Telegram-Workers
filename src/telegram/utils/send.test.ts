@@ -1,5 +1,6 @@
 import type * as Telegram from 'telegram-bot-api-types';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { SEGMENTATION_MARK, TRAILING_CUSTOM_EMOJI_ANCHOR } from './md2tgmd';
 import { MessageSender } from './send';
 
 afterEach(() => {
@@ -7,7 +8,7 @@ afterEach(() => {
 });
 
 describe('message sender editable thinking message', () => {
-    it('creates the placeholder once and edits the same message for dots and final text', async () => {
+    it('reuses the placeholder and places the final emoji before the native footer', async () => {
         const calls: Array<{ method: string; body: Record<string, unknown> }> = [];
         vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
             const url = String(input);
@@ -42,7 +43,12 @@ describe('message sender editable thinking message', () => {
 
         await sender.sendTextWithEntities('🔴 .', entities);
         await sender.sendTextWithEntities('🔴 ..', entities);
-        await sender.sendRichText('收到，测试正常。', undefined, 'chat', {
+        await sender.sendRichText([
+            `收到，测试正常。${TRAILING_CUSTOM_EMOJI_ANCHOR}`,
+            SEGMENTATION_MARK,
+            '>`gpt-5.6-terra 4.0s ttfc 3.6s`',
+            '>`↑ 139 (cache 0 0.0%) · ↓ 125 (think 88)`',
+        ].join('\n'), undefined, 'chat', {
             addQuote: false,
             quoteExpandable: false,
             trailingCustomEmojiId: '5170338015255463564',
@@ -67,7 +73,12 @@ describe('message sender editable thinking message', () => {
         expect(calls[2].body).toMatchObject({
             chat_id: 42,
             message_id: 777,
-            text: '收到，测试正常。 ![🔴](tg://emoji?id=5170338015255463564)',
+            text: [
+                '收到，测试正常。 ![🔴](tg://emoji?id=5170338015255463564)',
+                '',
+                '>`gpt-5.6-terra 4.0s ttfc 3.6s`',
+                '>`↑ 139 (cache 0 0.0%) · ↓ 125 (think 88)`',
+            ].join('\n'),
         });
         expect(sender.context.sentMessageIds).toEqual([777]);
     });

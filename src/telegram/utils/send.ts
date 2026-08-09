@@ -7,7 +7,7 @@ import { log, tagMessageIds } from '../../log';
 import { fetchWithTimeout } from '../../utils/fetch';
 import { createTelegramBotAPI } from '../api';
 import md2node from './md2node';
-import { chunkDocument, escape } from './md2tgmd';
+import { chunkDocument, escape, TRAILING_CUSTOM_EMOJI_ANCHOR } from './md2tgmd';
 import { waitUntil } from './tg_utils';
 
 class MessageContext implements Record<string, any> {
@@ -634,6 +634,9 @@ function renderMessage(parse_mode: Telegram.ParseMode | null, message: string, e
         : chunkMessage;
     const customEmojiId = expandParams?.trailingCustomEmojiId?.trim();
     if (!customEmojiId || !/^\d+$/.test(customEmojiId) || rendered.length === 0) {
+        for (let i = 0; i < rendered.length; i++) {
+            rendered[i] = rendered[i].replaceAll(TRAILING_CUSTOM_EMOJI_ANCHOR, '');
+        }
         return rendered;
     }
     const suffix = parse_mode === 'MarkdownV2'
@@ -641,7 +644,22 @@ function renderMessage(parse_mode: Telegram.ParseMode | null, message: string, e
         : parse_mode === 'HTML'
             ? ` <tg-emoji emoji-id="${customEmojiId}">🔴</tg-emoji>`
             : '';
-    if (suffix) {
+    if (!suffix) {
+        for (let i = 0; i < rendered.length; i++) {
+            rendered[i] = rendered[i].replaceAll(TRAILING_CUSTOM_EMOJI_ANCHOR, '');
+        }
+        return rendered;
+    }
+    let anchored = false;
+    for (let i = 0; i < rendered.length; i++) {
+        if (!rendered[i].includes(TRAILING_CUSTOM_EMOJI_ANCHOR)) {
+            continue;
+        }
+        rendered[i] = rendered[i].replace(TRAILING_CUSTOM_EMOJI_ANCHOR, suffix);
+        anchored = true;
+        break;
+    }
+    if (!anchored) {
         rendered[rendered.length - 1] += suffix;
     }
     return rendered;

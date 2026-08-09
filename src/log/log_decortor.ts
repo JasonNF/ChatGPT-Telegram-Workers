@@ -88,35 +88,37 @@ export function getLog(context: AgentUserConfig, { onlyModel = false, isParagrap
 
     if (!isParagraph) {
         const footerLines: string[] = [];
-        const summaryParts: string[] = [];
-        const lastModel = [...logs].reverse().find(log => log.model.trim())?.model;
-        if (show.model && lastModel) {
-            summaryParts.push(lastModel);
-        }
-
         const now = Date.now();
-        const startTimes = logs.map(log => log.start_time).filter(Number.isFinite);
-        const endTimes = logs
-            .filter(log => Number.isFinite(log.start_time))
-            .map(log => log.end_time ?? now)
-            .filter(Number.isFinite);
-        if (show.model_time && startTimes.length > 0 && endTimes.length > 0) {
-            const duration = Math.max(...endTimes) - Math.min(...startTimes);
-            if (duration >= 0) {
-                summaryParts.push(formatSeconds(duration));
+        for (const log of logs) {
+            const summaryParts: string[] = [];
+            if (show.model && log.model?.trim()) {
+                summaryParts.push(log.model);
             }
-        }
 
-        const firstChunkTime = logs.find(log =>
-            typeof log.first_chunk_time === 'number'
-            && Number.isFinite(log.first_chunk_time)
-            && log.first_chunk_time >= 0,
-        )?.first_chunk_time;
-        if (show.first_chunk_time && typeof firstChunkTime === 'number') {
-            summaryParts.push(`ttfc ${formatSeconds(firstChunkTime)}`);
-        }
-        if (summaryParts.length > 0) {
-            footerLines.push(summaryParts.join(' '));
+            if (show.model_time && Number.isFinite(log.start_time)) {
+                const duration = (log.end_time ?? now) - log.start_time;
+                if (duration >= 0) {
+                    summaryParts.push(formatSeconds(duration));
+                }
+            }
+
+            if (show.first_chunk_time
+                && typeof log.first_chunk_time === 'number'
+                && Number.isFinite(log.first_chunk_time)
+                && log.first_chunk_time >= 0) {
+                summaryParts.push(`ttfc ${formatSeconds(log.first_chunk_time)}`);
+            }
+            if (summaryParts.length > 0) {
+                footerLines.push(summaryParts.join(' '));
+            }
+
+            if (show.tool) {
+                footerLines.push(...log.functions.map(({ name, args, error, time }) => {
+                    const toolTime = show.tool_time && Number.isFinite(time) ? ` ${time}s` : '';
+                    const toolError = error ? ` ERROR: ${error}` : '';
+                    return `${name}: ${JSON.stringify(args).substring(0, 80)}${toolTime}${toolError}`;
+                }));
+            }
         }
 
         const tokenLogs = logs.flatMap(log => log.tokens ? [log.tokens] : []);
@@ -140,19 +142,9 @@ export function getLog(context: AgentUserConfig, { onlyModel = false, isParagrap
             footerLines.push(tokenSummary);
         }
 
-        if (show.tool) {
-            for (const { functions } of logs) {
-                footerLines.push(...functions.map(({ name, args, error, time }) => {
-                    const toolTime = show.tool_time && Number.isFinite(time) ? ` ${time}s` : '';
-                    const toolError = error ? ` ERROR: ${error}` : '';
-                    return `${name}: ${JSON.stringify(args).substring(0, 80)}${toolTime}${toolError}`;
-                }));
-            }
-        }
-
         return footerLines
             .filter(Boolean)
-            .map(line => `\`${line.replaceAll('`', '\'').replaceAll('\n', ' ')}\``)
+            .map(line => `>\`${line.replaceAll('`', '\'').replaceAll('\n', ' ')}\``)
             .join('\n');
     }
 
