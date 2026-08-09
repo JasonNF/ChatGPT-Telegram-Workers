@@ -305,13 +305,24 @@ export class OpenAIConfig {
     OPENAI_TTS_PROMPT = '';
     // Response api.
     // Set the model id that needs to use the response api. When * is included, it means to always use the response api.
-    OPENAI_RESPONSE_MODELS = ['*'];
+    //
+    // 默认值原为 ['*']，即**所有模型无条件走 OpenAI Responses API**。
+    // Responses API 是有状态的：服务端通过 store 持久化 msg_xxx 条目，
+    // 后续轮次靠引用这些 id 传递上下文。绝大多数第三方 OpenAI 兼容中转
+    // 并不实现 store，因此表现为「第一轮正常、第二轮起必然报
+    // Item with id msg_xxx not found」——容器 Up、日志无异常，极难排查。
+    //
+    // 改为默认空数组（走标准无状态 Chat Completions）。
+    // 需要 Responses API 的用户显式配置模型 id 或 '*' 即可开启。
+    OPENAI_RESPONSE_MODELS: string[] = [];
     // The API_EXTRA_PARAMS variable will override this option.
     OPENAI_PROVIDER_OPTIONS = {
         // metadata: {},
         parallelToolCalls: true,
         // previousResponseId: '',
-        // store: false,
+        // 显式关闭服务端会话存储：项目自己维护对话历史，
+        // 不依赖 Responses API 的 store，避免与中转实现耦合。
+        store: false,
         // user: 'user1',
         // reasoningEffort: 'medium', // 'low' | 'medium' | 'high', default is 'medium'
         // strictJsonSchema: true,
