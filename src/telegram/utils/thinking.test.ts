@@ -27,6 +27,18 @@ describe('buildThinkingFrame', () => {
             }],
         });
     });
+
+    it('omits manual dots when Telegram renders its native draft animation', () => {
+        expect(buildThinkingFrame(0, 'MOSS', '🔴', 'custom-id', false)).toEqual({
+            text: '🔴 MOSS',
+            entities: [{
+                type: 'custom_emoji',
+                offset: 0,
+                length: 2,
+                custom_emoji_id: 'custom-id',
+            }],
+        });
+    });
 });
 
 it('creates a stable non-zero Telegram draft id', () => {

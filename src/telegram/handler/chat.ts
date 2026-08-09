@@ -195,10 +195,15 @@ export function OnStreamHander(sender: MessageSender | ChosenInlineSender, conte
         ? createThinkingDraftId(sender.context.message.message_id)
         : 1;
     const thinkingIndicator = createThinkingIndicator({
-        intervalMs: ENV.TELEGRAM_THINKING_INTERVAL,
+        // Telegram clients append their own animated ellipsis to native drafts.
+        // A slow refresh keeps the draft alive without duplicating those dots.
+        intervalMs: useNativeDraft
+            ? Math.max(15_000, ENV.TELEGRAM_THINKING_INTERVAL)
+            : ENV.TELEGRAM_THINKING_INTERVAL,
         label: ENV.TELEGRAM_THINKING_LABEL,
         fallbackEmoji: ENV.TELEGRAM_THINKING_FALLBACK_EMOJI,
         customEmojiId: ENV.TELEGRAM_THINKING_CUSTOM_EMOJI_ID || undefined,
+        includeDots: !useNativeDraft,
         sendFrame: async (frame) => {
             let response: Response;
             if (useNativeDraft && sender instanceof MessageSender) {

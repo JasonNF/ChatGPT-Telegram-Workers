@@ -16,6 +16,7 @@ interface ThinkingIndicatorOptions {
     label: string;
     fallbackEmoji: string;
     customEmojiId?: string;
+    includeDots?: boolean;
     sendFrame: (frame: ThinkingFrame) => Promise<void>;
     onError?: (error: unknown, frame: ThinkingFrame) => Promise<void> | void;
 }
@@ -27,10 +28,13 @@ export function buildThinkingFrame(
     label: string,
     fallbackEmoji: string,
     customEmojiId?: string,
+    includeDots = true,
 ): ThinkingFrame {
     const emoji = fallbackEmoji.trim() || '🔴';
     const name = label.trim() || 'MOSS';
-    const text = `${emoji} ${name} ${DOT_FRAMES[frameIndex % DOT_FRAMES.length]}`;
+    const text = includeDots
+        ? `${emoji} ${name} ${DOT_FRAMES[frameIndex % DOT_FRAMES.length]}`
+        : `${emoji} ${name}`;
     const entities = customEmojiId
         ? [{
                 type: 'custom_emoji' as const,
@@ -68,6 +72,7 @@ export function createThinkingIndicator(options: ThinkingIndicatorOptions): Thin
             options.label,
             options.fallbackEmoji,
             options.customEmojiId,
+            options.includeDots,
         );
         frameIndex = (frameIndex + 1) % DOT_FRAMES.length;
 
