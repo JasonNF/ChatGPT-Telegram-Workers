@@ -2,7 +2,7 @@ import * as fs from 'node:fs/promises';
 import path from 'node:path';
 
 const dockerfile = `
-FROM node:24-alpine@sha256:d32cdf619f63fe0471182d08996dd516c6275bb5fd31ae06e55a570bd9e1ad43 AS PROD
+FROM node:24-alpine@sha256:d32cdf619f63fe0471182d08996dd516c6275bb5fd31ae06e55a570bd9e1ad43 AS prod
 
 ARG VCS_REF=unknown
 LABEL org.opencontainers.image.source="https://github.com/JasonNF/ChatGPT-Telegram-Workers" \\

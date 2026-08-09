@@ -67,7 +67,8 @@
         "minimatch": "9.0.9",
         "node-cron": "^4.2.0",
         "picomatch": "4.0.5",
-        "tar-fs": "2.1.5"
+        "tar-fs": "2.1.5",
+        "undici": "7.29.0"
     },
     "devDependencies": {
         "@antfu/eslint-config": "^4.16.2",
@@ -101,8 +102,7 @@
             }
         },
         "cf-worker-adapter": {
-            "sqlite3": "6.0.1",
-            "undici": "7.29.0"
+            "sqlite3": "6.0.1"
         },
         "sqlite3": {
             ".": "6.0.1",
