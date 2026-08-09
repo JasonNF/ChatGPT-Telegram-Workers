@@ -10,6 +10,7 @@ import { ENV } from '../../config/env';
 import { createRouter } from '../../route/index';
 import { createTelegramBotAPI } from '../../telegram/api';
 import { handleUpdate } from '../../telegram/handler';
+import { withSerialWrites } from '../../utils/cache/serial';
 
 const {
     CONFIG_PATH = '/app/config.json',
@@ -38,9 +39,12 @@ if (config.proxy) {
 }
 
 // 初始化数据库
-const cache = createCache(config?.database?.type, {
+// withSerialWrites 为纵深防御第二道：串行化同一 key 的写入，
+// 防止定时任务与消息处理同时落盘导致数据撕裂。
+// 会话级临界区由 handleUpdate 中的 sessionQueue 保证。
+const cache = withSerialWrites(createCache(config?.database?.type, {
     uri: config.database.path || '',
-});
+}));
 console.log(`database: ${config?.database?.type} is ready`);
 
 // 初始化环境变量
