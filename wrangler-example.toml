@@ -92,6 +92,10 @@ GROUP_CHAT_BOT_ENABLE = 'true'
 #SHOW_REPLY_BUTTON = false
 ## 而外引用消息开关
 #EXTRA_MESSAGE_CONTEXT = 'false'
+## 在回复底部显示两行紧凑模型、耗时与 Token 尾注
+#ENABLE_SHOWINFO = 'true'
+#SHOW_PARTS = 'model,model_time,first_chunk_time,token'
+#LOG_POSITION_ON_TOP = 'false'
 
 ## -- 模式开关 --
 ##

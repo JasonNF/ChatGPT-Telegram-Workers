@@ -627,10 +627,15 @@ async function asr(audio: Blob, config: AgentUserConfig) {
 }
 
 function mergeLogMessages(text: string, config: AgentUserConfig | undefined): string {
-    if (ENV.LOG_POSITION_ON_TOP) {
-        return `${config ? getLog(config) : ''}\n${SEGMENTATION_MARK}\n${text.trim()}`;
+    const content = text.trim();
+    const footer = config ? getLog(config) : '';
+    if (!footer) {
+        return content;
     }
-    return `${text.trim()}\n${SEGMENTATION_MARK}\n${config ? getLog(config) : ''}`;
+    if (ENV.LOG_POSITION_ON_TOP) {
+        return `${footer}\n\n${SEGMENTATION_MARK}\n${content}`;
+    }
+    return `${content}\n\n${SEGMENTATION_MARK}\n${footer}`;
 }
 
 // v5: Breaking change in file type extraction logic.

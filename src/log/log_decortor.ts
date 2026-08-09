@@ -85,6 +85,77 @@ export function getLog(context: AgentUserConfig, { onlyModel = false, isParagrap
         tool_time: context.SHOW_PARTS.includes('tool_time'),
         first_chunk_time: context.SHOW_PARTS.includes('first_chunk_time'),
     };
+
+    if (!isParagraph) {
+        const footerLines: string[] = [];
+        const summaryParts: string[] = [];
+        const lastModel = [...logs].reverse().find(log => log.model.trim())?.model;
+        if (show.model && lastModel) {
+            summaryParts.push(lastModel);
+        }
+
+        const now = Date.now();
+        const startTimes = logs.map(log => log.start_time).filter(Number.isFinite);
+        const endTimes = logs
+            .filter(log => Number.isFinite(log.start_time))
+            .map(log => log.end_time ?? now)
+            .filter(Number.isFinite);
+        if (show.model_time && startTimes.length > 0 && endTimes.length > 0) {
+            const duration = Math.max(...endTimes) - Math.min(...startTimes);
+            if (duration >= 0) {
+                summaryParts.push(formatSeconds(duration));
+            }
+        }
+
+        const firstChunkTime = logs.find(log =>
+            typeof log.first_chunk_time === 'number'
+            && Number.isFinite(log.first_chunk_time)
+            && log.first_chunk_time >= 0,
+        )?.first_chunk_time;
+        if (show.first_chunk_time && typeof firstChunkTime === 'number') {
+            summaryParts.push(`ttfc ${formatSeconds(firstChunkTime)}`);
+        }
+        if (summaryParts.length > 0) {
+            footerLines.push(summaryParts.join(' '));
+        }
+
+        const tokenLogs = logs.flatMap(log => log.tokens ? [log.tokens] : []);
+        if (show.token && tokenLogs.length > 0) {
+            const prompt = tokenLogs.reduce((sum, tokens) => sum + tokens.prompt, 0);
+            const completion = tokenLogs.reduce((sum, tokens) => sum + tokens.completion, 0);
+            const cached = tokenLogs.reduce((sum, tokens) => sum + (tokens.cached ?? 0), 0);
+            const reasoning = tokenLogs.reduce((sum, tokens) => sum + (tokens.reasoning ?? 0), 0);
+            const hasCached = tokenLogs.some(tokens => tokens.cached !== undefined);
+            const hasReasoning = tokenLogs.some(tokens => tokens.reasoning !== undefined);
+
+            let tokenSummary = `↑ ${formatCompactNumber(prompt)}`;
+            if (hasCached) {
+                const ratio = prompt > 0 ? ` ${(cached / prompt * 100).toFixed(1)}%` : '';
+                tokenSummary += ` (cache ${formatCompactNumber(cached)}${ratio})`;
+            }
+            tokenSummary += ` · ↓ ${formatCompactNumber(completion)}`;
+            if (hasReasoning) {
+                tokenSummary += ` (think ${formatCompactNumber(reasoning)})`;
+            }
+            footerLines.push(tokenSummary);
+        }
+
+        if (show.tool) {
+            for (const { functions } of logs) {
+                footerLines.push(...functions.map(({ name, args, error, time }) => {
+                    const toolTime = show.tool_time && Number.isFinite(time) ? ` ${time}s` : '';
+                    const toolError = error ? ` ERROR: ${error}` : '';
+                    return `${name}: ${JSON.stringify(args).substring(0, 80)}${toolTime}${toolError}`;
+                }));
+            }
+        }
+
+        return footerLines
+            .filter(Boolean)
+            .map(line => `\`${line.replaceAll('`', '\'').replaceAll('\n', ' ')}\``)
+            .join('\n');
+    }
+
     for (const log of logs) {
         let logStr = '';
         if (show.model) {
@@ -123,9 +194,26 @@ export function getLog(context: AgentUserConfig, { onlyModel = false, isParagrap
         }).join('|')}`);
     }
 
-    return isParagraph
-        ? logList.filter(Boolean).join(' ')
-        : logList.filter(Boolean).flatMap(i => i.split('\n')).map(i => `>\`${i}\``).join('\n');
+    return logList.filter(Boolean).join(' ');
+}
+
+function formatSeconds(milliseconds: number): string {
+    return `${(milliseconds / 1e3).toFixed(1)}s`;
+}
+
+function formatCompactNumber(value: number): string {
+    const absoluteValue = Math.abs(value);
+    if (absoluteValue >= 1e6) {
+        return `${formatScaledNumber(value / 1e6)}m`;
+    }
+    if (absoluteValue >= 1e3) {
+        return `${formatScaledNumber(value / 1e3)}k`;
+    }
+    return Math.round(value).toString();
+}
+
+function formatScaledNumber(value: number): string {
+    return value.toFixed(1).replace(/\.0$/, '');
 }
 
 export function clearLog(context: AgentUserConfig) {
