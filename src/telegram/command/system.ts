@@ -328,17 +328,26 @@ export class SystemCommandHandler implements CommandHandler {
         if (ENV.DEV_MODE) {
             const shareCtx = { ...context.SHARE_CONTEXT };
             shareCtx.botToken = '******';
-            context.USER_CONFIG.OPENAI_API_KEY = ['******'];
-            context.USER_CONFIG.AZURE_API_KEY = '******';
-            context.USER_CONFIG.AZURE_COMPLETIONS_API = '******';
-            context.USER_CONFIG.AZURE_DALLE_API = '******';
-            context.USER_CONFIG.CLOUDFLARE_ACCOUNT_ID = '******';
-            context.USER_CONFIG.CLOUDFLARE_TOKEN = '******';
-            context.USER_CONFIG.GOOGLE_API_KEY = '******';
-            context.USER_CONFIG.MISTRAL_API_KEY = '******';
-            context.USER_CONFIG.COHERE_API_KEY = '******';
-            context.USER_CONFIG.ANTHROPIC_API_KEY = '******';
-            const config = ConfigMerger.trim(context.USER_CONFIG, ENV.LOCK_USER_CONFIG_KEYS);
+            // 原实现有两个问题：
+            // 1) 硬编码白名单，遗漏了 OAILIKE_API_KEY / XAI_API_KEY /
+            //    JINA_API_KEY / FISH_API_KEY，每新增 provider 都会再次遗漏，
+            //    导致 /system 在 DEV_MODE 下明文回显密钥。
+            // 2) 直接改写 context.USER_CONFIG，把真实密钥替换成 '******'，
+            //    污染了当前会话的活动配置。
+            // 现改为：在副本上按名称模式统一脱敏，新增 provider 自动覆盖。
+            const SENSITIVE_PATTERN = /API_KEY|TOKEN|SECRET|PASSWORD|ACCOUNT_ID|COMPLETIONS_API|DALLE_API/i;
+            const redacted: Record<string, any> = { ...context.USER_CONFIG };
+            for (const key of Object.keys(redacted)) {
+                if (!SENSITIVE_PATTERN.test(key)) {
+                    continue;
+                }
+                const value = redacted[key];
+                if (value === null || value === undefined || value === '') {
+                    continue;
+                }
+                redacted[key] = Array.isArray(value) ? value.map(() => '******') : '******';
+            }
+            const config = ConfigMerger.trim(redacted as any, ENV.LOCK_USER_CONFIG_KEYS);
             msg = `${msg}\n`;
             msg += `USER_CONFIG: ${JSON.stringify(config, null, 2)}\n`;
             msg += `CHAT_CONTEXT: ${JSON.stringify(sender.context || {}, null, 2)}\n`;
