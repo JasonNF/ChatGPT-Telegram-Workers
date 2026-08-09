@@ -36,6 +36,13 @@ kv_namespaces = [
 #TELEGRAM_API_DOMAIN = 'https://api.telegram.org'
 ## 允许访问的Telegram Token， 设置时以逗号分隔
 TELEGRAM_AVAILABLE_TOKENS = 'TOKEN1,TOKEN2'
+## 私聊使用 Telegram 原生草稿动画展示思考状态
+#TELEGRAM_THINKING_DRAFT_ENABLED = 'true'
+## 动画帧间隔（毫秒）与文字标识
+#TELEGRAM_THINKING_INTERVAL = '900'
+#TELEGRAM_THINKING_LABEL = 'MOSS'
+## 动态自定义 Emoji ID；留空时回退为红色圆点
+#TELEGRAM_THINKING_CUSTOM_EMOJI_ID = ''
 ## 默认消息模式
 #DEFAULT_PARSE_MODE = 'Markdown'
 ## 图片传输模式。Telegram 文件 URL 含 Bot Token，因此默认并强制回落为 base64

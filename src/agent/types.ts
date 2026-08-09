@@ -47,7 +47,9 @@ export interface ChatStreamTextHandler {
     sender?: MessageSender;
     send: (text: string, type?: 'chat' | 'error' | 'heartbeat') => Promise<any>;
     end?: (text: string, needLog?: boolean, type?: 'chat' | 'error' | 'heartbeat') => Promise<any>;
-    clearHeartbeat?: () => void;
+    clearHeartbeat?: () => Promise<void>;
+    startThinking?: () => Promise<void>;
+    stopThinking?: () => Promise<void>;
 }
 
 export type ImageAgentRequest = (prompt: string, context: AgentUserConfig, extraParams?: Record<string, any>) => Promise<ImageResult>;

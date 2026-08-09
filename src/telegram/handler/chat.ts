@@ -19,12 +19,13 @@ import { createTelegramBotAPI } from '../api';
 import { escape, SEGMENTATION_MARK } from '../utils/md2tgmd';
 import { MessageSender, sendAction, TelegraphSender } from '../utils/send';
 import { downloadTelegramFiles, getTelegramFile, waitUntil } from '../utils/tg_utils';
+import { createThinkingDraftId, createThinkingIndicator } from '../utils/thinking';
 
 async function messageInitialize(sender: MessageSender, context?: WorkerContext, message?: Telegram.Message): Promise<ChatStreamTextHandler> {
     setTimeout(() => sendAction(sender.api.token, sender.context.chat_id, 'typing'), 0);
     log.info(`send init message`);
     const streamSender = OnStreamHander(sender, context, message?.text || message?.caption || '');
-    streamSender.send('...');
+    await streamSender.startThinking?.();
     return streamSender;
 }
 
@@ -87,7 +88,7 @@ export class ChatHandler implements MessageHandler<WorkerContext> {
             await workflow(context, message, params, streamSender);
             return null;
         } catch (e) {
-            streamSender.clearHeartbeat!();
+            await streamSender.clearHeartbeat!();
             const sender = streamSender.sender as MessageSender;
             log.error((e as Error).stack);
             if ((e as Error).message.includes('524')) {
@@ -187,6 +188,49 @@ export function OnStreamHander(sender: MessageSender | ChosenInlineSender, conte
 
     const immediatePromise = Promise.resolve('[PROMISE DONE]');
 
+    const useNativeDraft = isMessageSender
+        && sender.context.chatType === 'private'
+        && ENV.TELEGRAM_THINKING_DRAFT_ENABLED;
+    const draftId = sender instanceof MessageSender
+        ? createThinkingDraftId(sender.context.message.message_id)
+        : 1;
+    const thinkingIndicator = createThinkingIndicator({
+        intervalMs: ENV.TELEGRAM_THINKING_INTERVAL,
+        label: ENV.TELEGRAM_THINKING_LABEL,
+        fallbackEmoji: ENV.TELEGRAM_THINKING_FALLBACK_EMOJI,
+        customEmojiId: ENV.TELEGRAM_THINKING_CUSTOM_EMOJI_ID || undefined,
+        sendFrame: async (frame) => {
+            let response: Response;
+            if (useNativeDraft && sender instanceof MessageSender) {
+                response = await sender.sendMessageDraft(draftId, frame.text, frame.entities);
+                // A stale/unsupported custom emoji must not disable the native animation.
+                if (!response.ok && frame.entities) {
+                    response = await sender.sendMessageDraft(draftId, frame.text);
+                }
+            } else if (sender instanceof MessageSender) {
+                response = await sender.sendPlainText(frame.text, 'chat');
+            } else {
+                response = await sender.sendPlainText(frame.text);
+            }
+            if (!response.ok) {
+                throw new Error(`Thinking indicator failed with HTTP ${response.status}`);
+            }
+        },
+        onError: async (error, frame) => {
+            log.warn((error as Error).message);
+            if (!useNativeDraft) {
+                return;
+            }
+            try {
+                if (sender instanceof MessageSender) {
+                    await sender.sendPlainText(frame.text, 'chat');
+                }
+            } catch (fallbackError) {
+                log.warn((fallbackError as Error).message);
+            }
+        },
+    });
+
     let cache = '';
     let heartWaitedTime = 0;
     let heartbeatId: NodeJS.Timeout;
@@ -196,9 +240,12 @@ export function OnStreamHander(sender: MessageSender | ChosenInlineSender, conte
         send: null as ((text: string, type?: 'chat' | 'error' | 'heartbeat') => Promise<any>) | null,
         end: null as ((text: string, needLog?: boolean, type?: 'chat' | 'error' | 'heartbeat') => Promise<any>) | null,
         sender,
-        clearHeartbeat: () => {
+        clearHeartbeat: async () => {
             heartbeatId && clearInterval(heartbeatId);
+            await thinkingIndicator.stop();
         },
+        startThinking: () => thinkingIndicator.start(),
+        stopThinking: () => thinkingIndicator.stop(),
     };
 
     const updateHeartbeat = () => {
@@ -212,6 +259,7 @@ export function OnStreamHander(sender: MessageSender | ChosenInlineSender, conte
 
     streamSender.send = async (text: string, type = 'chat'): Promise<any> => {
         try {
+            await thinkingIndicator.stop();
             if (type === 'chat') {
                 cache = text;
                 heartWaitedTime = 0;
@@ -274,7 +322,8 @@ export function OnStreamHander(sender: MessageSender | ChosenInlineSender, conte
 
     streamSender.end = async (text: string, needLog = true, type = 'chat'): Promise<any> => {
         log.info('--- start end ---');
-        streamSender.clearHeartbeat();
+        await thinkingIndicator.stop();
+        await streamSender.clearHeartbeat();
         await sentPromise;
         if ((nextEnableTime || 0) > Date.now()) {
             log.info(`Need await: ${(nextEnableTime || 0) - Date.now()}ms`);
@@ -452,7 +501,7 @@ async function handleTextToImage(
     streamSender: ChatStreamTextHandler,
     handleKey: string,
 ): Promise<Response> {
-    streamSender.clearHeartbeat!();
+    await streamSender.clearHeartbeat!();
     const agent = loadImageGen(context.USER_CONFIG);
     const sender = streamSender.sender!;
     if (!agent) {
@@ -484,7 +533,7 @@ async function handleAudio(
         await streamSender.end!(mergeLogMessages(text, context.USER_CONFIG));
     }
     if (handleKey.startsWith('stt')) {
-        streamSender.clearHeartbeat!();
+        await streamSender.clearHeartbeat!();
         return new Response('audio handle done');
     }
     clearLog(context.USER_CONFIG);
@@ -492,7 +541,7 @@ async function handleAudio(
     const isMiddle = handleKey === 'audio:audio';
     const otherText = (params.content as TextPart[]).filter(c => c.type === 'text').map(c => c.text).join('\n').trim();
     const resp = await chatWithLLM(message, { role: 'user', content: `[AUDIO TRANSCRIPTION]: ${text}\n${otherText}` }, context, null, streamSender, isMiddle);
-    streamSender.clearHeartbeat!();
+    await streamSender.clearHeartbeat!();
     if (isMiddle) {
         const audio = await tts(resp as unknown as string, context.USER_CONFIG);
         console.log(`audio size: ${(audio.size / 1024 / 1024).toFixed(3)}mb`);
@@ -521,7 +570,7 @@ async function handleTextToAudio(
     console.log(`audio size: ${(audio.size / 1024 / 1024).toFixed(3)}mb`);
     sendAction(context.SHARE_CONTEXT.botToken, sender.context.chat_id, 'upload_voice');
     const resp = await sender.sendVoice(audio, context.USER_CONFIG.AUDIO_CONTAINS_TEXT ? text : undefined);
-    streamSender.clearHeartbeat!();
+    await streamSender.clearHeartbeat!();
     if (resp.ok) {
         return sender.api.deleteMessage({ chat_id: sender.context.chat_id, message_id: sender.context.message_id! });
     }

@@ -60,6 +60,7 @@ export class MessageSender {
         this.sendDocument = this.sendDocument.bind(this);
         this.sendVoice = this.sendVoice.bind(this);
         this.editMessageMedia = this.editMessageMedia.bind(this);
+        this.sendMessageDraft = this.sendMessageDraft.bind(this);
     }
 
     static from(token: string, message: Telegram.Message): MessageSender {
@@ -189,6 +190,16 @@ export class MessageSender {
             ...this.context,
             parse_mode: null,
         }), type);
+    }
+
+    sendMessageDraft(draftId: number, text: string, entities?: Telegram.MessageEntity[]): Promise<Response> {
+        return this.api.request('sendMessageDraft' as Telegram.BotMethod, {
+            chat_id: this.context.chat_id,
+            message_thread_id: this.context.message_thread_id || undefined,
+            draft_id: draftId,
+            text,
+            entities,
+        });
     }
 
     sendPhoto(photo: string | Blob, caption?: string | undefined, parse_mode?: Telegram.ParseMode): Promise<Response> {
