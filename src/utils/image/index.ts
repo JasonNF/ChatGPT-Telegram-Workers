@@ -1,10 +1,11 @@
 import { Cache } from '../cache';
-import { fetchWithTimeout } from '../fetch';
+import { fetchWithTimeout, readResponseBytesWithLimit } from '../fetch';
 
 const IMAGE_CACHE = new Cache<Blob>();
 
 /** 图片/文件下载超时。慢链路 + 大文件场景给足余量，但必须有上限。 */
 const MEDIA_DOWNLOAD_TIMEOUT_MS = 90_000;
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 
 async function fetchImage(url: string): Promise<Blob> {
     const cache = IMAGE_CACHE.get(url);
@@ -12,25 +13,29 @@ async function fetchImage(url: string): Promise<Blob> {
         return cache;
     }
     return fetchWithTimeout(url, { timeoutMs: MEDIA_DOWNLOAD_TIMEOUT_MS })
-        .then(resp => resp.blob())
+        .then(async (resp) => {
+            if (!resp.ok) {
+                throw new Error(`Image download failed with HTTP ${resp.status}`);
+            }
+            const bytes = await readResponseBytesWithLimit(resp, MAX_IMAGE_BYTES);
+            return new Blob([bytes], { type: resp.headers.get('content-type') || '' });
+        })
         .then((blob) => {
             IMAGE_CACHE.set(url, blob);
             return blob;
         });
 }
 
-async function urlToBase64String(url: string): Promise<string> {
+async function blobToBase64(blob: Blob): Promise<string> {
     try {
         const { Buffer } = await import('node:buffer');
-        return fetchImage(url)
-            .then(blob => blob.arrayBuffer())
-            .then(buffer => Buffer.from(buffer).toString('base64'));
+        return blob.arrayBuffer().then(buffer => Buffer.from(buffer).toString('base64'));
     } catch {
     // 非原生base64编码速度太慢不适合在workers中使用
     // 在wrangler.toml中添加 Node.js 选项启用nodejs兼容
     // compatibility_flags = [ "nodejs_compat" ]
-        return fetchImage(url)
-            .then(blob => blob.arrayBuffer())
+        return blob
+            .arrayBuffer()
             .then(buffer => btoa(String.fromCharCode.apply(null, new Uint8Array(buffer) as unknown as number[])));
     }
 }
@@ -57,11 +62,18 @@ interface Base64DataWithFormat {
 }
 
 export async function imageToBase64String(url: string): Promise<Base64DataWithFormat> {
-    const base64String = await urlToBase64String(url);
-    const format = getImageFormatFromBase64(base64String);
+    return blobToBase64String(await fetchImage(url));
+}
+
+export async function blobToBase64String(blob: Blob): Promise<Base64DataWithFormat> {
+    const base64String = await blobToBase64(blob);
+    const contentType = blob.type.split(';', 1)[0].toLowerCase();
+    const format = contentType.startsWith('image/')
+        ? contentType
+        : `image/${getImageFormatFromBase64(base64String)}`;
     return {
         data: base64String,
-        format: `image/${format}`,
+        format,
     };
 }
 

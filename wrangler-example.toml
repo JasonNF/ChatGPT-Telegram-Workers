@@ -38,6 +38,16 @@ kv_namespaces = [
 TELEGRAM_AVAILABLE_TOKENS = 'TOKEN1,TOKEN2'
 ## 默认消息模式
 #DEFAULT_PARSE_MODE = 'Markdown'
+## 图片传输模式。Telegram 文件 URL 含 Bot Token，因此默认并强制回落为 base64
+#TELEGRAM_IMAGE_TRANSFER_MODE = 'base64'
+## 单条消息最大文件数量
+#TELEGRAM_MAX_FILE_COUNT = 10
+## 单文件最大下载字节数（20 MiB）
+#TELEGRAM_MAX_FILE_SIZE = 20971520
+## 单条消息所有文件最大下载字节数（50 MiB）
+#TELEGRAM_MAX_TOTAL_FILE_SIZE = 52428800
+## Telegram 文件下载超时（秒）
+#TELEGRAM_FILE_DOWNLOAD_TIMEOUT = 90
 
 ## --  权限相关 --
 ##

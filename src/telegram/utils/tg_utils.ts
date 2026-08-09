@@ -1,6 +1,7 @@
 import type * as Telegram from 'telegram-bot-api-types';
 import { ENV } from '../../config/env';
 import { log } from '../../log';
+import { fetchWithTimeout, readResponseBytesWithLimit, ResponseBodyTooLargeError } from '../../utils/fetch';
 import { createTelegramBotAPI } from '../api';
 import { findPhotoFileID } from '../handler/chat';
 
@@ -121,27 +122,74 @@ export function chunkArray(arr: any[], size: number): any[][] {
 }
 
 export async function getTelegramFile(fileIds: string[], botToken: string, type: 'url' | 'blob' | 'base64' = 'url') {
+    const maxFileCount = positiveIntegerOr(ENV.TELEGRAM_MAX_FILE_COUNT, 10);
+    if (fileIds.length > maxFileCount) {
+        throw new Error(`Too many Telegram files: maximum ${maxFileCount} per message`);
+    }
     const api = createTelegramBotAPI(botToken);
     const files = await Promise.all(fileIds.map(id => api.getFileWithReturns({ file_id: id })));
     const errorFile = files.find(f => !f.ok) as unknown as Telegram.ResponseError | undefined;
     if (errorFile) {
-        throw new Error(errorFile.description);
+        throw new Error(errorFile.description.replaceAll(botToken, '[REDACTED]'));
     }
 
     const paths = files.map(f => f.result?.file_path).filter(Boolean) as string[];
-    const urls = paths.map(p => `https://api.telegram.org/file/bot${botToken}/${p}`);
-    log.info(`files urls:\n${urls.join('\n')}`);
+    const telegramBaseURL = ENV.TELEGRAM_API_DOMAIN.replace(/\/+$/, '');
+    const urls = paths.map(p => `${telegramBaseURL}/file/bot${botToken}/${p.replace(/^\/+/, '')}`);
+    log.info(`Resolved ${urls.length} Telegram file(s)`);
 
     switch (type) {
         case 'url':
             return urls;
         case 'blob':
-            return await Promise.all(paths.map(p => fetch(`https://api.telegram.org/file/bot${botToken}/${p}`, {
-            }).then(res => res.blob())));
+            return downloadTelegramFiles(urls);
         case 'base64':
-            return await Promise.all(paths.map(p => fetch(`https://api.telegram.org/file/bot${botToken}/${p}`, {
-            }).then(res => res.arrayBuffer()).then(buffer => Buffer.from(buffer).toString('base64'))));
+            return Promise.all((await downloadTelegramFiles(urls)).map(async blob => Buffer.from(await blob.arrayBuffer()).toString('base64')));
     }
+}
+
+function positiveIntegerOr(value: unknown, fallback: number): number {
+    return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : fallback;
+}
+
+/**
+ * 下载 Telegram 文件时同时限制单文件和整条消息的内存占用。
+ * 顺序下载是有意为之：可以在总预算耗尽前停止，而不是并发读完后才发现超限。
+ */
+export async function downloadTelegramFiles(urls: string[]): Promise<Blob[]> {
+    const maxFileCount = positiveIntegerOr(ENV.TELEGRAM_MAX_FILE_COUNT, 10);
+    const maxFileBytes = positiveIntegerOr(ENV.TELEGRAM_MAX_FILE_SIZE, 20 * 1024 * 1024);
+    const maxTotalBytes = positiveIntegerOr(ENV.TELEGRAM_MAX_TOTAL_FILE_SIZE, 50 * 1024 * 1024);
+    const timeoutMs = positiveIntegerOr(ENV.TELEGRAM_FILE_DOWNLOAD_TIMEOUT, 90) * 1000;
+    if (urls.length > maxFileCount) {
+        throw new Error(`Too many Telegram files: maximum ${maxFileCount} per message`);
+    }
+
+    const blobs: Blob[] = [];
+    let totalBytes = 0;
+    for (const url of urls) {
+        const remainingBytes = maxTotalBytes - totalBytes;
+        if (remainingBytes <= 0) {
+            throw new Error(`Telegram files exceed the ${maxTotalBytes}-byte total limit`);
+        }
+        const response = await fetchWithTimeout(url, { timeoutMs });
+        if (!response.ok) {
+            throw new Error(`Telegram file download failed with HTTP ${response.status}`);
+        }
+        const currentLimit = Math.min(maxFileBytes, remainingBytes);
+        let bytes: Uint8Array;
+        try {
+            bytes = await readResponseBytesWithLimit(response, currentLimit);
+        } catch (error) {
+            if (error instanceof ResponseBodyTooLargeError && remainingBytes < maxFileBytes) {
+                throw new Error(`Telegram files exceed the ${maxTotalBytes}-byte total limit`);
+            }
+            throw error;
+        }
+        totalBytes += bytes.byteLength;
+        blobs.push(new Blob([bytes], { type: response.headers.get('content-type') || '' }));
+    }
+    return blobs;
 }
 
 // export async function getStoreMediaIds(context: ShareContext, media_group_id: string | undefined): Promise<string[]> {

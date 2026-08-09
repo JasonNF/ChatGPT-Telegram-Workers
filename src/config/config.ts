@@ -26,8 +26,16 @@ export class EnvironmentConfig {
     // 图片尺寸偏移 0为第一位，-1为最后一位, 越靠后的图片越大。PS: 图片过大可能导致token消耗过多，或者workers超时或内存不足
     // 默认选择次高质量的图片
     TELEGRAM_PHOTO_SIZE_OFFSET = -2;
-    // 向LLM优先传递图片方式：url, base64
-    TELEGRAM_IMAGE_TRANSFER_MODE = 'url';
+    // 向 LLM 传递图片方式：base64（安全默认）或 url（会向模型供应商暴露 Bot Token）
+    TELEGRAM_IMAGE_TRANSFER_MODE = 'base64';
+    // 单条消息允许解析的 Telegram 文件数量
+    TELEGRAM_MAX_FILE_COUNT = 10;
+    // 单个 Telegram 文件最大下载字节数（默认 20 MiB）
+    TELEGRAM_MAX_FILE_SIZE = 20 * 1024 * 1024;
+    // 单条消息内所有 Telegram 文件最大下载字节数（默认 50 MiB）
+    TELEGRAM_MAX_TOTAL_FILE_SIZE = 50 * 1024 * 1024;
+    // Telegram 文件下载超时，单位：秒
+    TELEGRAM_FILE_DOWNLOAD_TIMEOUT = 90;
 
     // --  权限相关 --
     //

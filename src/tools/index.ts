@@ -12,7 +12,7 @@ import { getMcp } from '../mcp';
 import { interpolate } from '../plugins/interpolate';
 import { sendImages } from '../telegram/handler/chat';
 import { isCfWorker } from '../telegram/utils/tg_utils';
-import { fetchWithTimeout, DEFAULT_FETCH_TIMEOUT_MS } from '../utils/fetch';
+import { DEFAULT_FETCH_TIMEOUT_MS, fetchWithTimeout } from '../utils/fetch';
 import externalTools from './external';
 import internalTools from './internal';
 import { processHtmlText, webCrawler } from './internal/web';

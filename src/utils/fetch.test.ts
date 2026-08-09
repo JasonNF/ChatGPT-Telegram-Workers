@@ -68,4 +68,14 @@ describe('fetchWithTimeout', () => {
             fetchWithTimeout('https://example.com', { timeoutMs: 1000 }),
         ).rejects.toThrow('ECONNREFUSED');
     });
+
+    it('底层网络错误不会回显 Telegram Bot Token', async () => {
+        const token = '123456:network-secret';
+        vi.stubGlobal('fetch', async () => {
+            throw new TypeError(`fetch failed for https://api.telegram.org/file/bot${token}/a.png`);
+        });
+        const error = await fetchWithTimeout(`https://api.telegram.org/file/bot${token}/a.png`).catch(value => value);
+        expect(String(error)).not.toContain(token);
+        expect(String(error)).toContain('[REDACTED]');
+    });
 });

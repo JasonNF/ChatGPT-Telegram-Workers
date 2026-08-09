@@ -23,6 +23,7 @@ import {
     TagNeedDelete,
     WhiteListFilter,
 } from './handlers';
+import { sessionKeyOf } from './session';
 
 function loadMessage(body: Telegram.Update, isForwarding: boolean) {
     switch (true) {
@@ -44,38 +45,6 @@ function loadMessage(body: Telegram.Update, isForwarding: boolean) {
 }
 
 const exitHanders: MessageHandler<any>[] = [new TagNeedDelete()];
-
-/**
- * 推导会话级串行 key。
- *
- * 必须与 ShareContext 中 chatHistoryKey / configStoreKey 的分组粒度一致，
- * 否则同一份历史仍可能被两个队列并发读改写。
- * 这里只需要「同一份历史落在同一个 key」，无需完全等同于存储键名。
- */
-function sessionKeyOf(token: string, update: Telegram.Update): string {
-    const chat = update.message?.chat
-        ?? update.callback_query?.message?.chat
-        ?? update.edited_message?.chat;
-    const from = update.message?.from
-        ?? update.callback_query?.from
-        ?? update.inline_query?.from
-        ?? update.chosen_inline_result?.from;
-
-    // 无法归属会话时（如 inline query），用发送者兜底，最差退化为按 token 串行
-    const chatId = chat?.id ?? from?.id ?? 'unknown';
-    let key = `${token}:${chatId}`;
-
-    // 群组未开启共享模式时按发言人分组，与 ShareContext 保持一致
-    if ((chat?.type === 'group' || chat?.type === 'supergroup') && from?.id) {
-        key += `:${from.id}`;
-    }
-    // 话题模式下按 thread 分组
-    const threadId = update.message?.message_thread_id;
-    if (chat?.is_forum && update.message?.is_topic_message && threadId) {
-        key += `:${threadId}`;
-    }
-    return key;
-}
 
 export async function handleUpdate(token: string, update: Telegram.Update, headers?: Headers): Promise<Response | null> {
     log.debug(`handleUpdate`, update.message?.chat ?? `callback_query: ${JSON.stringify(update.callback_query?.from, null, 2)}`);

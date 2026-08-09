@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { escape } from './md2tgmd';
+import { escape, SEGMENTATION_MARK } from './md2tgmd';
 
-const text1 = `LOGSTART>\`gpt-4o 12.5s\`
+const text1 = `>\`gpt-4o 12.5s\`
 >\`search\`
->\`110,12\`LOGEND
-
+>\`110,12\`
+${SEGMENTATION_MARK}
 >- Hello, Siri!
 >- Hi!
 >- What can I do for you?
@@ -23,9 +23,9 @@ Maybe you can.
 >You said:
 >The meaning of life is to be happy.`;
 
-const tgmd1 = `**>\`gpt-4o 12.5s\`
+const tgmd1 = `>\`gpt-4o 12.5s\`
 >\`search\`
->\`110,12\`||
+>\`110,12\`
 
 >• Hello, Siri\\!
 >• Hi\\!
@@ -47,9 +47,9 @@ Maybe you can\\.
 
 const tgmd1_expand = `**>\`gpt-4o 12.5s\`
 >\`search\`
->\`110,12\`
->
->• Hello, Siri\\!
+>\`110,12\`||
+
+**>• Hello, Siri\\!
 >• Hi\\!
 >• What can I do for you?
 >• Can you help me with my homework?
@@ -185,12 +185,18 @@ describe('text4', () => {
 // >wowo`;
 // addExpandable(text, true);
 
-const text5 = `LOGSTART>\`gemini-2.0-flash-exp c_t: 4.3s\`
+const text5 = `>\`gemini-2.0-flash-exp c_t: 4.3s\`
 >\`imagen-3.0-fast-generate-001 6.5s\`
->\`1240,307\`LOGEND
+>\`1240,307\`
+${SEGMENTATION_MARK}
 A photo of a small, fluffy, white kitten sitting with a slight lean to the left, its legs together. Its head is turned approximately 20 degrees to the right, and its gaze is directed towards the upper right, giving it a pensive expression. Its fur is long and soft, with a naturally messy look, appearing slightly damp. Some strands fall over its forehead, partially obscuring its left eye, while the rest cascades over its shoulders and chest. It has soft facial features and fair skin, with thin, naturally shaped eyebrows`;
 
 // const data = escape(text5, { quoteExpandable: true, addQuote: true });
+
+const thmd5_plain = `>\`gemini-2.0-flash-exp c_t: 4.3s\`
+>\`imagen-3.0-fast-generate-001 6.5s\`
+>\`1240,307\`
+A photo of a small, fluffy, white kitten sitting with a slight lean to the left, its legs together\\. Its head is turned approximately 20 degrees to the right, and its gaze is directed towards the upper right, giving it a pensive expression\\. Its fur is long and soft, with a naturally messy look, appearing slightly damp\\. Some strands fall over its forehead, partially obscuring its left eye, while the rest cascades over its shoulders and chest\\. It has soft facial features and fair skin, with thin, naturally shaped eyebrows`;
 
 const thmd5_noquote = `**>\`gemini-2.0-flash-exp c_t: 4.3s\`
 >\`imagen-3.0-fast-generate-001 6.5s\`
@@ -199,12 +205,13 @@ A photo of a small, fluffy, white kitten sitting with a slight lean to the left,
 
 const thmd5_expand = `**>\`gemini-2.0-flash-exp c_t: 4.3s\`
 >\`imagen-3.0-fast-generate-001 6.5s\`
->\`1240,307\`
->A photo of a small, fluffy, white kitten sitting with a slight lean to the left, its legs together\\. Its head is turned approximately 20 degrees to the right, and its gaze is directed towards the upper right, giving it a pensive expression\\. Its fur is long and soft, with a naturally messy look, appearing slightly damp\\. Some strands fall over its forehead, partially obscuring its left eye, while the rest cascades over its shoulders and chest\\. It has soft facial features and fair skin, with thin, naturally shaped eyebrows||`;
+>\`1240,307\`||
+
+**>A photo of a small, fluffy, white kitten sitting with a slight lean to the left, its legs together\\. Its head is turned approximately 20 degrees to the right, and its gaze is directed towards the upper right, giving it a pensive expression\\. Its fur is long and soft, with a naturally messy look, appearing slightly damp\\. Some strands fall over its forehead, partially obscuring its left eye, while the rest cascades over its shoulders and chest\\. It has soft facial features and fair skin, with thin, naturally shaped eyebrows||`;
 
 describe('text5', () => {
     it('log data no quote, no expandable', () => {
-        expect(escape(text5, { quoteExpandable: false, addQuote: false })).toBe(thmd5_noquote);
+        expect(escape(text5, { quoteExpandable: false, addQuote: false })).toBe(thmd5_plain);
     });
     it('log data no quote, expandable', () => {
         expect(escape(text5, { quoteExpandable: true, addQuote: false })).toBe(thmd5_noquote);
@@ -216,33 +223,38 @@ describe('text5', () => {
 
 const text6 = `>A photo of a small, fluffy, white kitten sitting with a slight lean to the left, its legs together. Its head is turned approximately 20 degrees to the right, and its gaze is directed towards the upper right, giving it a pensive expression. Its fur is long and soft, with a naturally messy look, appearing slightly damp. Some strands fall over its forehead, partially obscuring its left eye, while the rest cascades over its shoulders and chest. It has soft facial features and fair skin, with thin, naturally shaped eyebrows.
 It's a photo.
-LOGSTART>\`gemini-2.0-flash-exp c_t: 4.3s\`
+${SEGMENTATION_MARK}
+>\`gemini-2.0-flash-exp c_t: 4.3s\`
 >\`imagen-3.0-fast-generate-001 6.5s\`
->\`1240,307\`LOGEND`;
+>\`1240,307\``;
 
 const tgmd6_noquote_expand = `**>A photo of a small, fluffy, white kitten sitting with a slight lean to the left, its legs together\\. Its head is turned approximately 20 degrees to the right, and its gaze is directed towards the upper right, giving it a pensive expression\\. Its fur is long and soft, with a naturally messy look, appearing slightly damp\\. Some strands fall over its forehead, partially obscuring its left eye, while the rest cascades over its shoulders and chest\\. It has soft facial features and fair skin, with thin, naturally shaped eyebrows\\.||
 It's a photo\\.
+
 **>\`gemini-2.0-flash-exp c_t: 4.3s\`
 >\`imagen-3.0-fast-generate-001 6.5s\`
 >\`1240,307\`||`;
 
 const tgmd6_quote_expand = `**>A photo of a small, fluffy, white kitten sitting with a slight lean to the left, its legs together\\. Its head is turned approximately 20 degrees to the right, and its gaze is directed towards the upper right, giving it a pensive expression\\. Its fur is long and soft, with a naturally messy look, appearing slightly damp\\. Some strands fall over its forehead, partially obscuring its left eye, while the rest cascades over its shoulders and chest\\. It has soft facial features and fair skin, with thin, naturally shaped eyebrows\\.
->It's a photo\\.
->\`gemini-2.0-flash-exp c_t: 4.3s\`
+>It's a photo\\.||
+
+**>\`gemini-2.0-flash-exp c_t: 4.3s\`
 >\`imagen-3.0-fast-generate-001 6.5s\`
 >\`1240,307\`||`;
 
 const tgmd6_noquote_noexpand = `>A photo of a small, fluffy, white kitten sitting with a slight lean to the left, its legs together\\. Its head is turned approximately 20 degrees to the right, and its gaze is directed towards the upper right, giving it a pensive expression\\. Its fur is long and soft, with a naturally messy look, appearing slightly damp\\. Some strands fall over its forehead, partially obscuring its left eye, while the rest cascades over its shoulders and chest\\. It has soft facial features and fair skin, with thin, naturally shaped eyebrows\\.
 It's a photo\\.
-**>\`gemini-2.0-flash-exp c_t: 4.3s\`
+
+>\`gemini-2.0-flash-exp c_t: 4.3s\`
 >\`imagen-3.0-fast-generate-001 6.5s\`
->\`1240,307\`||`;
+>\`1240,307\``;
 
 const tgmd6_quote_noexpand = `>A photo of a small, fluffy, white kitten sitting with a slight lean to the left, its legs together\\. Its head is turned approximately 20 degrees to the right, and its gaze is directed towards the upper right, giving it a pensive expression\\. Its fur is long and soft, with a naturally messy look, appearing slightly damp\\. Some strands fall over its forehead, partially obscuring its left eye, while the rest cascades over its shoulders and chest\\. It has soft facial features and fair skin, with thin, naturally shaped eyebrows\\.
 >It's a photo\\.
-**>\`gemini-2.0-flash-exp c_t: 4.3s\`
+
+>\`gemini-2.0-flash-exp c_t: 4.3s\`
 >\`imagen-3.0-fast-generate-001 6.5s\`
->\`1240,307\`||`;
+>\`1240,307\``;
 
 describe('text6', () => {
     it('log data expandable no quote', () => {

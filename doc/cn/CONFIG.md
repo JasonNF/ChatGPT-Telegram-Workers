@@ -39,7 +39,11 @@
 | CHAT_TOTAL_DURATION_LIMIT    | 聊天总时长限制     | `30 * 60`                   | 聊天总时长限制， 单位：秒                                 |
 | TELEGRAM_MIN_STREAM_INTERVAL | 最小流间隔         | `0`                         | 最小流间隔， 单位：毫秒                                   |
 | TELEGRAM_PHOTO_SIZE_OFFSET   | 图片尺寸偏移       | `-2`                        | 图片尺寸偏移， 单位：像素                                 |
-| TELEGRAM_IMAGE_TRANSFER_MODE | 图片传输模式       | `url`                       | 图片传输模式， 可选值：`url, base64`                      |
+| TELEGRAM_IMAGE_TRANSFER_MODE | 图片传输模式       | `base64`                    | 图片传输模式；含 Bot Token 的 Telegram URL 会强制回落为 `base64` |
+| TELEGRAM_MAX_FILE_COUNT      | 单条消息文件数上限 | `10`                        | 超过上限时在下载前拒绝                                    |
+| TELEGRAM_MAX_FILE_SIZE       | 单文件下载上限     | `20971520`                  | 字节数，默认 20 MiB                                       |
+| TELEGRAM_MAX_TOTAL_FILE_SIZE | 单条消息总下载上限 | `52428800`                  | 字节数，默认 50 MiB                                       |
+| TELEGRAM_FILE_DOWNLOAD_TIMEOUT | 文件下载超时     | `90`                        | 单位：秒                                                  |
 
 
 > IMPORTANT: 必须把群ID加到白名单`CHAT_GROUP_WHITE_LIST`才能使用, 否则任何人都可以把你的机器人加到群组中，然后消耗你的配额。

@@ -134,7 +134,11 @@ Each user's custom configuration can only be modified by sending a message throu
 | CHAT_TOTAL_DURATION_LIMIT    | Chat total duration limit      | `30 * 60`                                  | Chat total duration limit, unit: seconds                                                                      |
 | TELEGRAM_MIN_STREAM_INTERVAL | Telegram min stream interval   | `0`                                        | Telegram min stream interval, unit: milliseconds                                                              |
 | TELEGRAM_PHOTO_SIZE_OFFSET   | Telegram photo size offset     | `-2`                                       | Telegram photo size offset, unit: pixels                                                                      |
-| TELEGRAM_IMAGE_TRANSFER_MODE | Telegram image transfer mode   | `url`                                      | Telegram image transfer mode, optional values: `url, base64`                                                  |
+| TELEGRAM_IMAGE_TRANSFER_MODE | Telegram image transfer mode   | `base64`                                   | Telegram URLs containing a Bot Token always fall back to `base64`                                             |
+| TELEGRAM_MAX_FILE_COUNT      | Files per message limit        | `10`                                       | Reject excess files before downloading                                                                        |
+| TELEGRAM_MAX_FILE_SIZE       | Per-file download limit        | `20971520`                                 | Bytes; defaults to 20 MiB                                                                                      |
+| TELEGRAM_MAX_TOTAL_FILE_SIZE | Per-message download limit     | `52428800`                                 | Bytes; defaults to 50 MiB                                                                                      |
+| TELEGRAM_FILE_DOWNLOAD_TIMEOUT | File download timeout        | `90`                                       | Seconds                                                                                                       |
 
 ### OpenAI
 

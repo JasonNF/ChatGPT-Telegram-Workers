@@ -3,9 +3,16 @@ services:
     container_name: chatgpt-telegram-workers
     build: .
     image: chatgpt-telegram-workers:latest
+    cpus: "1.0"
     ports:
       - "8787:8787"
     volumes:
       - ./config.json:/app/config.json:ro # change `./config.json` to your local path
       - ./wrangler.toml:/app/config.toml:ro # change `./wrangler.toml` to your local path
       - ./tool:/app/tool:ro # change `./tool` to your local path
+    healthcheck:
+      test: ["CMD", "node", "/app/healthcheck.mjs"]
+      interval: 30s
+      timeout: 5s
+      start_period: 90s
+      retries: 3

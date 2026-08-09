@@ -13,12 +13,12 @@ import { loadHistory, requestCompletionsFromLLM } from '../../agent/chat';
 import { ENV } from '../../config/env';
 import { clearLog, getLog, log } from '../../log';
 import { fetchWithTimeout } from '../../utils/fetch';
-import { imageToBase64String } from '../../utils/image';
+import { blobToBase64String } from '../../utils/image';
 import { convertAudio } from '../../utils/others/audio';
 import { createTelegramBotAPI } from '../api';
 import { escape, SEGMENTATION_MARK } from '../utils/md2tgmd';
 import { MessageSender, sendAction, TelegraphSender } from '../utils/send';
-import { getTelegramFile, waitUntil } from '../utils/tg_utils';
+import { downloadTelegramFiles, getTelegramFile, waitUntil } from '../utils/tg_utils';
 
 async function messageInitialize(sender: MessageSender, context?: WorkerContext, message?: Telegram.Message): Promise<ChatStreamTextHandler> {
     setTimeout(() => sendAction(sender.api.token, sender.context.chat_id, 'typing'), 0);
@@ -592,26 +592,28 @@ function mergeLogMessages(text: string, config: AgentUserConfig | undefined): st
 
 // v5: Breaking change in file type extraction logic.
 // Manual download and explicit MIME type specification are now required.
-async function fileUrlToBase64Message({ urls, type, params, AUDIO_HANDLE_TYPE = 'chat', text }: { urls: string[]; type: string; params: UserModelMessage; AUDIO_HANDLE_TYPE: string; text: string }): Promise<any> {
+export async function fileUrlToBase64Message({ urls, type, params, AUDIO_HANDLE_TYPE = 'chat', text }: { urls: string[]; type: string; params: UserModelMessage; AUDIO_HANDLE_TYPE: string; text: string }): Promise<any> {
+    let downloadedFiles: Promise<Blob[]> | undefined;
+    const getDownloadedFiles = () => downloadedFiles ??= downloadTelegramFiles(urls);
     async function urlToBase64Message(type = 'image') {
-        const responses = await Promise.all(urls.map(url => fetch(url))).then(r => r.filter(r => r.ok));
-        const mediaTypes = urls.map(url => `${type}/${url.split('.').pop()}`);
+        const blobs = await getDownloadedFiles();
+        const mediaTypes = blobs.map((blob, index) => blob.type || `${type}/${urls[index].split('.').pop()}`);
         let files: string[] = [];
-        if (!responses.length) {
+        if (!blobs.length) {
             throw new Error('Failed to fetch file data');
         }
         if (type === 'image') {
-            const imageData = await Promise.all(urls.map(url => imageToBase64String(url)));
+            const imageData = await Promise.all(blobs.map(blob => blobToBase64String(blob)));
             imageData.forEach(({ data, format }, i) => {
                 mediaTypes[i] = format;
                 files[i] = data;
             });
         }
         if (type === 'audio') {
-            files = await Promise.all(responses.map(r => convertAudio({ file: r, target: 'base64' }))) as string[];
+            files = await Promise.all(blobs.map(blob => convertAudio({ file: blob, target: 'base64' }))) as string[];
         }
         if (type === 'video') {
-            files = await Promise.all(responses.map(r => r.arrayBuffer().then(buffer => Buffer.from(buffer).toString('base64'))));
+            files = await Promise.all(blobs.map(blob => blob.arrayBuffer().then(buffer => Buffer.from(buffer).toString('base64'))));
         }
         return files.map((f, i) => ({
             type: type === 'image' || type === 'photo' ? 'image' : 'file',
@@ -624,7 +626,11 @@ async function fileUrlToBase64Message({ urls, type, params, AUDIO_HANDLE_TYPE = 
         case 'photo':
         case 'sticker':
         {
-            const isUrl = ENV.TELEGRAM_IMAGE_TRANSFER_MODE === 'url';
+            const containsBotCredential = urls.some(url => /\/file\/bot[^/]+\//.test(url));
+            const isUrl = ENV.TELEGRAM_IMAGE_TRANSFER_MODE === 'url' && !containsBotCredential;
+            if (ENV.TELEGRAM_IMAGE_TRANSFER_MODE === 'url' && containsBotCredential) {
+                log.warn('Telegram file URL contains a Bot credential; falling back to base64 transfer');
+            }
             const format = urls[0].split('.').pop();
             const type = format === 'webm' ? 'file' : 'image';
             const mediaTypePrefix = format === 'webm' ? 'video' : 'image';
@@ -646,8 +652,10 @@ async function fileUrlToBase64Message({ urls, type, params, AUDIO_HANDLE_TYPE = 
                 const files = await urlToBase64Message(t);
                 (params.content as any[]).push(...files);
             } else {
-                const mediaTypes = urls.map(url => `${t}/${url.split('.').pop()}`);
-                (params.content as any[]).push(...urls.map((audio, i) => ({
+                const blobs = await getDownloadedFiles();
+                const mediaTypes = blobs.map((blob, i) => blob.type || `${t}/${urls[i].split('.').pop()}`);
+                const files = await Promise.all(blobs.map(blob => blob.arrayBuffer().then(buffer => Buffer.from(buffer).toString('base64'))));
+                (params.content as any[]).push(...files.map((audio, i) => ({
                     type: 'file' as const,
                     data: audio,
                     mediaType: mediaTypes[i],
@@ -657,7 +665,7 @@ async function fileUrlToBase64Message({ urls, type, params, AUDIO_HANDLE_TYPE = 
         }
         case 'text':
         {
-            const fileText = await Promise.all(urls.map(url => fetch(url).then(r => r.text()))).then(t => t.join('\n'));
+            const fileText = await Promise.all((await getDownloadedFiles()).map(blob => blob.text())).then(t => t.join('\n'));
             params.content = [
                 {
                     type: 'text',

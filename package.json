@@ -5,6 +5,9 @@
     "description": "The easiest and quickest way to deploy your own ChatGPT Telegram bot is to use a single file and simply copy and paste it. There is no need for any dependencies, local development environment configuration, domain names, or servers.",
     "author": "tbxark <tbxark@outlook.com>",
     "license": "MIT",
+    "engines": {
+        "node": ">=24 <25"
+    },
     "repository": "git@github.com:TBXark/ChatGPT-Telegram-Workers.git",
     "exports": {
         ".": {
@@ -20,7 +23,9 @@
         "dist"
     ],
     "scripts": {
-        "lint": "eslint --fix *.js *.ts src plugins scripts",
+        "lint": "eslint *.js *.ts src plugins scripts",
+        "lint:fix": "npm run lint -- --fix",
+        "typecheck": "tsc --noEmit",
         "build": "vite build",
         "build:local": "BUILD_MODE=local vite build",
         "build:docker": "npm run build:local && cd dist && docker build -t chatgpt-telegram-workers:latest .",
@@ -36,7 +41,8 @@
         "start:debug": "wrangler dev --local",
         "prepare:vercel": "tsx ./scripts/plugins/vercel/setenv.ts",
         "wrangler": "wrangler",
-        "test": "vitest",
+        "test": "vitest run",
+        "test:watch": "vitest",
         "clean": "rm -rf dist"
     },
     "dependencies": {
@@ -45,7 +51,6 @@
         "@ai-sdk/cohere": "3.0.2",
         "@ai-sdk/google": "3.0.2",
         "@ai-sdk/google-vertex": "4.0.2",
-        "@ai-sdk/mcp": "^1.0.2",
         "@ai-sdk/mistral": "3.0.2",
         "@ai-sdk/openai": "3.0.2",
         "@ai-sdk/openai-compatible": "2.0.2",
@@ -53,10 +58,16 @@
         "@ai-sdk/xai": "3.0.3",
         "@ffmpeg.wasm/core-st": "^0.13.2",
         "@ffmpeg.wasm/main": "^0.13.1",
-        "@modelcontextprotocol/sdk": "^1.15.0",
+        "@modelcontextprotocol/sdk": "1.30.0",
+        "ajv": "8.20.0",
+        "brace-expansion": "2.1.4",
         "ai": "6.0.7",
         "cf-worker-adapter": "^1.4.0",
-        "node-cron": "^4.2.0"
+        "glob": "10.5.0",
+        "minimatch": "9.0.9",
+        "node-cron": "^4.2.0",
+        "picomatch": "4.0.5",
+        "tar-fs": "2.1.5"
     },
     "devDependencies": {
         "@antfu/eslint-config": "^4.16.2",
@@ -81,5 +92,35 @@
         "vite-plugin-dts": "^4.5.4",
         "vitest": "^3.2.4",
         "wrangler": "^4.24.0"
+    },
+    "overrides": {
+        "@modelcontextprotocol/sdk": {
+            "ajv": {
+                ".": "8.20.0",
+                "fast-uri": "3.1.5"
+            }
+        },
+        "cf-worker-adapter": {
+            "sqlite3": "6.0.1",
+            "undici": "7.29.0"
+        },
+        "sqlite3": {
+            ".": "6.0.1",
+            "node-gyp": {
+                "glob": {
+                    ".": "10.5.0",
+                    "minimatch": {
+                        ".": "9.0.9",
+                        "brace-expansion": "2.1.4"
+                    }
+                },
+                "tinyglobby": {
+                    "picomatch": "4.0.5"
+                }
+            },
+            "prebuild-install": {
+                "tar-fs": "2.1.5"
+            }
+        }
     }
 }

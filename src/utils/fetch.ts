@@ -22,6 +22,13 @@ export interface TimeoutFetchInit extends RequestInit {
     timeoutMs?: number;
 }
 
+export class ResponseBodyTooLargeError extends Error {
+    constructor(readonly maxBytes: number) {
+        super(`Response body exceeds the ${maxBytes}-byte limit`);
+        this.name = 'ResponseBodyTooLargeError';
+    }
+}
+
 /**
  * 合并调用方传入的 signal 与超时 signal。
  * 优先使用 AbortSignal.any（Node 20+ / Workers 均已支持），
@@ -76,6 +83,14 @@ export async function fetchWithTimeout(
             })();
             throw new Error(`Request to ${host} timed out after ${effective}ms`);
         }
+        if (err instanceof Error) {
+            const safeMessage = err.message.replace(/\/(?:file\/)?bot\d+:[^/\s]+/g, '/bot[REDACTED]');
+            if (safeMessage !== err.message) {
+                const safeError = new Error(safeMessage);
+                safeError.name = err.name;
+                throw safeError;
+            }
+        }
         throw err;
     }
 }
@@ -91,4 +106,56 @@ export function timeoutMsFromSeconds(seconds?: number | null): number {
         return DEFAULT_FETCH_TIMEOUT_MS;
     }
     return seconds * 1000;
+}
+
+/**
+ * 在读取响应流时强制限制字节数，既校验 Content-Length，也覆盖分块传输。
+ * 这避免先把不受控的大文件完整载入内存后才检查大小。
+ */
+export async function readResponseBytesWithLimit(response: Response, maxBytes: number): Promise<Uint8Array> {
+    if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) {
+        throw new TypeError('maxBytes must be a positive safe integer');
+    }
+
+    const declaredLength = Number(response.headers.get('content-length'));
+    if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+        await response.body?.cancel().catch(() => undefined);
+        throw new ResponseBodyTooLargeError(maxBytes);
+    }
+
+    if (!response.body) {
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        if (bytes.byteLength > maxBytes) {
+            throw new ResponseBodyTooLargeError(maxBytes);
+        }
+        return bytes;
+    }
+
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+                break;
+            }
+            total += value.byteLength;
+            if (total > maxBytes) {
+                await reader.cancel().catch(() => undefined);
+                throw new ResponseBodyTooLargeError(maxBytes);
+            }
+            chunks.push(value);
+        }
+    } finally {
+        reader.releaseLock();
+    }
+
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+        bytes.set(chunk, offset);
+        offset += chunk.byteLength;
+    }
+    return bytes;
 }

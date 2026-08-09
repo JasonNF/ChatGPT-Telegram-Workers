@@ -9,6 +9,8 @@ on:
       - 'src/**'
       - 'scripts/**'
       - 'package.json'
+      - 'package-lock.json'
+      - 'Dockerfile'
 
 jobs:
   build-and-push:
@@ -16,10 +18,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@v3
         with:
           platforms: all
 
@@ -29,10 +31,17 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
+          cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Verify source
+        run: |
+          npm run typecheck
+          npm run lint
+          npm test
 
       - name: Build the project
         run: npm run build:local
@@ -46,4 +55,4 @@ jobs:
       - name: Build and push Docker image
         run: |
           COMMIT_SHA=$(git rev-parse --short HEAD)
-          docker buildx build --platform linux/amd64,linux/arm64 -t ${{ secrets.DOCKER_USERNAME }}/chatgpt-telegram-workers:latest -t ${{ secrets.DOCKER_USERNAME }}/chatgpt-telegram-workers:${COMMIT_SHA} --push ./dist
+          docker buildx build --platform linux/amd64,linux/arm64 --build-arg VCS_REF=${COMMIT_SHA} -t ${{ secrets.DOCKER_USERNAME }}/chatgpt-telegram-workers:latest -t ${{ secrets.DOCKER_USERNAME }}/chatgpt-telegram-workers:${COMMIT_SHA} --push ./dist

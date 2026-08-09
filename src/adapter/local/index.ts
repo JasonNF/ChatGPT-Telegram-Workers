@@ -1,4 +1,3 @@
-import type { GetUpdatesResponse } from 'telegram-bot-api-types';
 import type { TelegramBotAPI } from '../../telegram/api';
 import * as fs from 'node:fs';
 import { createCache } from 'cf-worker-adapter/cache';
@@ -11,6 +10,7 @@ import { createRouter } from '../../route/index';
 import { createTelegramBotAPI } from '../../telegram/api';
 import { handleUpdate } from '../../telegram/handler';
 import { withSerialWrites } from '../../utils/cache/serial';
+import { redactTelegramSecrets, runPollingLoop } from './polling';
 
 const {
     CONFIG_PATH = '/app/config.json',
@@ -54,45 +54,36 @@ ENV.merge(env);
 // long polling 模式
 async function runPolling() {
     const clients: Record<string, TelegramBotAPI> = {};
-    const offset: Record<string, number> = {};
     for (const token of ENV.TELEGRAM_AVAILABLE_TOKENS) {
-        offset[token] = 0;
         const api = createTelegramBotAPI(token);
         clients[token] = api;
         const name = await api.getMeWithReturns();
-        await api.deleteWebhook({});
+        if (!name.ok || !name.result?.username) {
+            throw new Error('Telegram getMe failed during polling startup');
+        }
+        const deleteWebhookResponse = await api.deleteWebhook({});
+        if (!deleteWebhookResponse.ok) {
+            throw new Error(`Telegram deleteWebhook failed with HTTP ${deleteWebhookResponse.status}`);
+        }
         console.log(`@${name.result.username} Webhook deleted, If you want to use webhook, please set it up again.`);
     }
 
-    ENV.TELEGRAM_AVAILABLE_TOKENS.forEach(async (token) => {
-        while (true) {
-            try {
-                const resp = await clients[token].getUpdates({
-                    offset: offset[token],
-                    timeout: 30,
-                });
-                if (resp.status === 429) {
-                    const retryAfter = Number.parseInt(resp.headers.get('Retry-After') || '');
-                    if (retryAfter) {
-                        console.log(`Rate limited, retry after ${retryAfter} seconds`);
-                        await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
-                        continue;
-                    }
-                }
-                const { result } = await resp.json() as GetUpdatesResponse;
-                for (const update of result) {
-                    if (update.update_id >= offset[token]) {
-                        offset[token] = update.update_id + 1;
-                    }
-                    setImmediate(async () => {
-                        await handleUpdate(token, update).catch(console.error);
-                    });
-                }
-            } catch (e) {
-                console.error(e);
-            }
-        }
-    });
+    writePollingHeartbeat();
+    await Promise.all(ENV.TELEGRAM_AVAILABLE_TOKENS.map(token => runPollingLoop({
+        client: clients[token],
+        token,
+        handleUpdate,
+        heartbeat: writePollingHeartbeat,
+    })));
+}
+
+const heartbeatPath = process.env.HEARTBEAT_PATH || '/tmp/tg-bot-heartbeat';
+function writePollingHeartbeat() {
+    try {
+        fs.writeFileSync(heartbeatPath, String(Date.now()), { mode: 0o600 });
+    } catch (error) {
+        console.error(`Failed to write polling heartbeat: ${redactTelegramSecrets(error, '')}`);
+    }
 }
 
 try {
@@ -120,5 +111,8 @@ if (config.mode === 'webhook' && config.server !== undefined) {
         router.fetch.bind(router),
     );
 } else {
-    runPolling().catch(console.error);
+    runPolling().catch((error) => {
+        console.error(`Polling startup failed: ${redactTelegramSecrets(error, '')}`);
+        process.exit(1);
+    });
 }
