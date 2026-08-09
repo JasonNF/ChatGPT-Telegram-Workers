@@ -19,11 +19,11 @@ export class EnvironmentConfig {
     TELEGRAM_API_DOMAIN = 'https://api.telegram.org';
     // 允许访问的Telegram Token， 设置时以逗号分隔
     TELEGRAM_AVAILABLE_TOKENS: string[] = [];
-    // 私聊使用 Telegram 原生草稿动画展示思考占位符，失败时回退为普通消息
+    // 使用可编辑消息展示思考动画，正式回复会复用同一个消息气泡
     TELEGRAM_THINKING_DRAFT_ENABLED = true;
     // 思考占位符帧间隔，单位毫秒
     TELEGRAM_THINKING_INTERVAL = 900;
-    TELEGRAM_THINKING_LABEL = 'MOSS';
+    TELEGRAM_THINKING_LABEL = '';
     // 自定义 Emoji 不可用时的回退图标
     TELEGRAM_THINKING_FALLBACK_EMOJI = '🔴';
     // Telegram custom_emoji_id；留空时使用上述回退图标

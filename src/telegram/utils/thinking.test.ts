@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
     buildThinkingFrame,
-    createThinkingDraftId,
     createThinkingIndicator,
 } from './thinking';
 
@@ -28,9 +27,9 @@ describe('buildThinkingFrame', () => {
         });
     });
 
-    it('omits manual dots when Telegram renders its native draft animation', () => {
-        expect(buildThinkingFrame(0, 'MOSS', '🔴', 'custom-id', false)).toEqual({
-            text: '🔴 MOSS',
+    it('supports an icon-only label while preserving animated dots', () => {
+        expect(buildThinkingFrame(0, '', '🔴', 'custom-id')).toEqual({
+            text: '🔴 .',
             entities: [{
                 type: 'custom_emoji',
                 offset: 0,
@@ -39,12 +38,6 @@ describe('buildThinkingFrame', () => {
             }],
         });
     });
-});
-
-it('creates a stable non-zero Telegram draft id', () => {
-    expect(createThinkingDraftId(42, 1_000)).toBe(1_043);
-    expect(createThinkingDraftId(42, 1_000)).toBe(createThinkingDraftId(42, 1_000));
-    expect(createThinkingDraftId(-42, -1_000)).toBeGreaterThan(0);
 });
 
 it('animates until stopped without overlapping timers', async () => {

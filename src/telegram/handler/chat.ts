@@ -19,14 +19,12 @@ import { createTelegramBotAPI } from '../api';
 import { escape, SEGMENTATION_MARK } from '../utils/md2tgmd';
 import { MessageSender, sendAction, TelegraphSender } from '../utils/send';
 import { downloadTelegramFiles, getTelegramFile, waitUntil } from '../utils/tg_utils';
-import { createThinkingDraftId, createThinkingIndicator } from '../utils/thinking';
+import { createThinkingIndicator } from '../utils/thinking';
 
-async function messageInitialize(sender: MessageSender, context?: WorkerContext, message?: Telegram.Message): Promise<ChatStreamTextHandler> {
+function messageInitialize(sender: MessageSender, context?: WorkerContext, message?: Telegram.Message): ChatStreamTextHandler {
     setTimeout(() => sendAction(sender.api.token, sender.context.chat_id, 'typing'), 0);
     log.info(`send init message`);
-    const streamSender = OnStreamHander(sender, context, message?.text || message?.caption || '');
-    await streamSender.startThinking?.();
-    return streamSender;
+    return OnStreamHander(sender, context, message?.text || message?.caption || '');
 }
 
 export async function chatWithLLM(
@@ -39,6 +37,9 @@ export async function chatWithLLM(
 ): Promise<Response | string> {
     const streamSender = sender ?? OnStreamHander(MessageSender.from(context.SHARE_CONTEXT.botToken, message), context, message?.text || message?.caption || '');
     try {
+        if (!isMiddle) {
+            await streamSender.startThinking?.();
+        }
         const agent = loadChatLLM(context.USER_CONFIG);
         log.info(`start chat with LLM`);
         const answer = await requestCompletionsFromLLM(params, context, agent, modifier, ENV.STREAM_MODE && !isMiddle ? streamSender : null);
@@ -77,7 +78,7 @@ export function findPhotoFileID(photos: Telegram.PhotoSize[], offset: number): s
 export class ChatHandler implements MessageHandler<WorkerContext> {
     handle = async (message: Telegram.Message, context: WorkerContext): Promise<Response | null> => {
         const sender = MessageSender.from(context.SHARE_CONTEXT.botToken, message);
-        const streamSender = await messageInitialize(sender, context, message);
+        const streamSender = messageInitialize(sender, context, message);
         try {
             log.info(`message type: ${context.MIDDLE_CONTEXT.messageInfo.type}`);
             await this.initializeHistory(context);
@@ -188,29 +189,21 @@ export function OnStreamHander(sender: MessageSender | ChosenInlineSender, conte
 
     const immediatePromise = Promise.resolve('[PROMISE DONE]');
 
-    const useNativeDraft = isMessageSender
-        && sender.context.chatType === 'private'
+    const useEditableThinkingMessage = isMessageSender
         && ENV.TELEGRAM_THINKING_DRAFT_ENABLED;
-    const draftId = sender instanceof MessageSender
-        ? createThinkingDraftId(sender.context.message.message_id)
-        : 1;
     const thinkingIndicator = createThinkingIndicator({
-        // Telegram clients append their own animated ellipsis to native drafts.
-        // A slow refresh keeps the draft alive without duplicating those dots.
-        intervalMs: useNativeDraft
-            ? Math.max(15_000, ENV.TELEGRAM_THINKING_INTERVAL)
-            : ENV.TELEGRAM_THINKING_INTERVAL,
+        intervalMs: ENV.TELEGRAM_THINKING_INTERVAL,
         label: ENV.TELEGRAM_THINKING_LABEL,
         fallbackEmoji: ENV.TELEGRAM_THINKING_FALLBACK_EMOJI,
         customEmojiId: ENV.TELEGRAM_THINKING_CUSTOM_EMOJI_ID || undefined,
-        includeDots: !useNativeDraft,
+        includeDots: true,
         sendFrame: async (frame) => {
             let response: Response;
-            if (useNativeDraft && sender instanceof MessageSender) {
-                response = await sender.sendMessageDraft(draftId, frame.text, frame.entities);
-                // A stale/unsupported custom emoji must not disable the native animation.
+            if (useEditableThinkingMessage && sender instanceof MessageSender) {
+                response = await sender.sendTextWithEntities(frame.text, frame.entities, 'chat');
+                // A stale custom emoji must not prevent the text fallback from rendering.
                 if (!response.ok && frame.entities) {
-                    response = await sender.sendMessageDraft(draftId, frame.text);
+                    response = await sender.sendTextWithEntities(frame.text, undefined, 'chat');
                 }
             } else if (sender instanceof MessageSender) {
                 response = await sender.sendPlainText(frame.text, 'chat');
@@ -221,18 +214,8 @@ export function OnStreamHander(sender: MessageSender | ChosenInlineSender, conte
                 throw new Error(`Thinking indicator failed with HTTP ${response.status}`);
             }
         },
-        onError: async (error, frame) => {
+        onError: async (error) => {
             log.warn((error as Error).message);
-            if (!useNativeDraft) {
-                return;
-            }
-            try {
-                if (sender instanceof MessageSender) {
-                    await sender.sendPlainText(frame.text, 'chat');
-                }
-            } catch (fallbackError) {
-                log.warn((fallbackError as Error).message);
-            }
         },
     });
 

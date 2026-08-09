@@ -60,7 +60,7 @@ export class MessageSender {
         this.sendDocument = this.sendDocument.bind(this);
         this.sendVoice = this.sendVoice.bind(this);
         this.editMessageMedia = this.editMessageMedia.bind(this);
-        this.sendMessageDraft = this.sendMessageDraft.bind(this);
+        this.sendTextWithEntities = this.sendTextWithEntities.bind(this);
     }
 
     static from(token: string, message: Telegram.Message): MessageSender {
@@ -83,13 +83,14 @@ export class MessageSender {
         return this;
     }
 
-    private async sendMessage(message: string, context: MessageContext): Promise<Response> {
+    private async sendMessage(message: string, context: MessageContext, entities?: Telegram.MessageEntity[]): Promise<Response> {
         if (context?.message_id) {
             const params: Telegram.EditMessageTextParams = {
                 chat_id: context.chat_id,
                 message_id: context.message_id,
-                parse_mode: context.parse_mode || undefined,
+                parse_mode: entities ? undefined : context.parse_mode || undefined,
                 text: message,
+                entities,
             };
             if (context.disable_web_page_preview) {
                 params.link_preview_options = {
@@ -101,8 +102,9 @@ export class MessageSender {
             const params: Telegram.SendMessageParams = {
                 chat_id: context.chat_id,
                 message_thread_id: context.message_thread_id || undefined,
-                parse_mode: context.parse_mode || undefined,
+                parse_mode: entities ? undefined : context.parse_mode || undefined,
                 text: message,
+                entities,
             };
             if (context.reply_to_message_id) {
                 params.reply_parameters = {
@@ -192,14 +194,29 @@ export class MessageSender {
         }), type);
     }
 
-    sendMessageDraft(draftId: number, text: string, entities?: Telegram.MessageEntity[]): Promise<Response> {
-        return this.api.request('sendMessageDraft' as Telegram.BotMethod, {
-            chat_id: this.context.chat_id,
-            message_thread_id: this.context.message_thread_id || undefined,
-            draft_id: draftId,
-            text,
-            entities,
-        });
+    async sendTextWithEntities(
+        text: string,
+        entities?: Telegram.MessageEntity[],
+        type: 'tip' | 'chat' = 'chat',
+    ): Promise<Response> {
+        if (!this.context) {
+            throw new Error('Message context not set');
+        }
+        const messageContext = {
+            ...this.context,
+            message_id: this.context.sentMessageIds[0] ?? null,
+            parse_mode: null,
+        };
+        const response = await this.sendMessage(text, messageContext, entities);
+        if (response.ok) {
+            const payload = await response.clone().json() as Telegram.SendMessageResponse;
+            const messageId = payload.result?.message_id;
+            if (messageId) {
+                this.context.sentMessageIds[0] = messageId;
+                this.context.message_id = messageId;
+            }
+        }
+        return checkIsNeedTagIds(this.context, Promise.resolve(response), type);
     }
 
     sendPhoto(photo: string | Blob, caption?: string | undefined, parse_mode?: Telegram.ParseMode): Promise<Response> {

@@ -31,10 +31,15 @@ export function buildThinkingFrame(
     includeDots = true,
 ): ThinkingFrame {
     const emoji = fallbackEmoji.trim() || '🔴';
-    const name = label.trim() || 'MOSS';
-    const text = includeDots
-        ? `${emoji} ${name} ${DOT_FRAMES[frameIndex % DOT_FRAMES.length]}`
-        : `${emoji} ${name}`;
+    const parts = [emoji];
+    const name = label.trim();
+    if (name) {
+        parts.push(name);
+    }
+    if (includeDots) {
+        parts.push(DOT_FRAMES[frameIndex % DOT_FRAMES.length]);
+    }
+    const text = parts.join(' ');
     const entities = customEmojiId
         ? [{
                 type: 'custom_emoji' as const,
@@ -46,13 +51,6 @@ export function buildThinkingFrame(
         : undefined;
 
     return { text, entities };
-}
-
-export function createThinkingDraftId(messageId: number, now = Date.now()): number {
-    const maxDraftId = 2_147_483_646;
-    const normalizedMessageId = Math.abs(Math.trunc(messageId)) % maxDraftId;
-    const normalizedTime = Math.abs(Math.trunc(now)) % maxDraftId;
-    return ((normalizedTime + normalizedMessageId) % maxDraftId) + 1;
 }
 
 export function createThinkingIndicator(options: ThinkingIndicatorOptions): ThinkingIndicator {
