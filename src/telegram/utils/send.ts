@@ -4,6 +4,7 @@ import type { TelegramBotAPI } from '../api';
 import type { ExpandParams } from './md2tgmd';
 import { ENV } from '../../config/env';
 import { log, tagMessageIds } from '../../log';
+import { fetchWithTimeout } from '../../utils/fetch';
 import { createTelegramBotAPI } from '../api';
 import md2node from './md2node';
 import { chunkDocument, escape } from './md2tgmd';
@@ -343,7 +344,7 @@ export class TelegraphSender {
     private async createAccount(): Promise<string> {
         const { short_name, author_name } = this.author;
         const url = `https://api.telegra.ph/createAccount?short_name=${short_name}&author_name=${author_name}`;
-        const resp = await fetch(url).then(r => r.json());
+        const resp = await fetchWithTimeout(url, { timeoutMs: 30_000 }).then(r => r.json());
         if (resp.ok) {
             console.log('create telegraph account success:', resp.result.access_token);
             return resp.result.access_token;
@@ -381,10 +382,11 @@ export class TelegraphSender {
             ...this.author,
         };
         const headers = { 'Content-Type': 'application/json' };
-        return fetch(url, {
+        return fetchWithTimeout(url, {
             method: 'post',
             headers,
             body: JSON.stringify(body),
+            timeoutMs: 60_000,
         });
     }
 

@@ -1,13 +1,17 @@
 import { Cache } from '../cache';
+import { fetchWithTimeout } from '../fetch';
 
 const IMAGE_CACHE = new Cache<Blob>();
+
+/** 图片/文件下载超时。慢链路 + 大文件场景给足余量，但必须有上限。 */
+const MEDIA_DOWNLOAD_TIMEOUT_MS = 90_000;
 
 async function fetchImage(url: string): Promise<Blob> {
     const cache = IMAGE_CACHE.get(url);
     if (cache) {
         return cache;
     }
-    return fetch(url)
+    return fetchWithTimeout(url, { timeoutMs: MEDIA_DOWNLOAD_TIMEOUT_MS })
         .then(resp => resp.blob())
         .then((blob) => {
             IMAGE_CACHE.set(url, blob);

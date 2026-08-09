@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from '../utils/fetch';
 import { interpolate } from './interpolate';
 
 /**
@@ -117,10 +118,12 @@ export async function executeRequest(template: RequestTemplate, data: any): Prom
         }
     }
 
-    const response = await fetch(url, {
+    // 插件请求指向用户配置的任意地址，必须有超时上限
+    const response = await fetchWithTimeout(url, {
         method,
         headers,
         body,
+        timeoutMs: 60_000,
     });
 
     const renderOutput = async (type: TemplateResponseType, temple: string, response: Response): Promise<string> => {

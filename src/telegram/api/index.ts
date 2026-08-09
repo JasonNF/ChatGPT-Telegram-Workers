@@ -1,5 +1,23 @@
 import type * as Telegram from 'telegram-bot-api-types';
 import { ENV } from '../../config/env';
+import { fetchWithTimeout } from '../../utils/fetch';
+
+/**
+ * 普通 Telegram API 调用的超时。
+ * 发消息/编辑消息本应在数秒内完成，挂死会拖住整个会话队列。
+ */
+const TELEGRAM_API_TIMEOUT_MS = 60_000;
+
+/**
+ * getUpdates 是长轮询，服务端会挂起到 timeout 参数指定的秒数才返回，
+ * 因此必须显式放宽，否则会被误判为超时并造成消息丢失。
+ * 取 polling timeout(30s) 的两倍余量。
+ */
+const TELEGRAM_POLLING_TIMEOUT_MS = 90_000;
+
+function timeoutForMethod(method: Telegram.BotMethod): number {
+    return method === 'getUpdates' ? TELEGRAM_POLLING_TIMEOUT_MS : TELEGRAM_API_TIMEOUT_MS;
+}
 
 class APIClientBase {
     readonly token: string;
@@ -22,12 +40,13 @@ class APIClientBase {
     }
 
     private jsonRequest<T>(method: Telegram.BotMethod, params: T): Promise<Response> {
-        return fetch(this.uri(method), {
+        return fetchWithTimeout(this.uri(method), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify(params),
+            timeoutMs: timeoutForMethod(method),
         });
     }
 
@@ -45,9 +64,10 @@ class APIClientBase {
                 formData.append(key, JSON.stringify(value));
             }
         }
-        return fetch(this.uri(method), {
+        return fetchWithTimeout(this.uri(method), {
             method: 'POST',
             body: formData,
+            timeoutMs: timeoutForMethod(method),
         });
     }
 

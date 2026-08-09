@@ -12,6 +12,7 @@ import { getMcp } from '../mcp';
 import { interpolate } from '../plugins/interpolate';
 import { sendImages } from '../telegram/handler/chat';
 import { isCfWorker } from '../telegram/utils/tg_utils';
+import { fetchWithTimeout, DEFAULT_FETCH_TIMEOUT_MS } from '../utils/fetch';
 import externalTools from './external';
 import internalTools from './internal';
 import { processHtmlText, webCrawler } from './internal/web';
@@ -34,10 +35,11 @@ export function executeTool(toolName: string, env: Record<string, any>, _config:
         };
     }
     return async (args: any): Promise<{ content: unknown; time: string; error?: string }> => {
-        let signal;
-        if (ENV.TOOL_TIMEOUT > 0) {
-            signal = AbortSignal.timeout(ENV.TOOL_TIMEOUT * 1000);
-        }
+        // TOOL_TIMEOUT 默认为 0（原语义「不限制」），会导致工具请求无限挂起
+        // 并占死会话队列。这里改为 0 时回落到默认兜底超时。
+        const signal = AbortSignal.timeout(
+            ENV.TOOL_TIMEOUT > 0 ? ENV.TOOL_TIMEOUT * 1000 : DEFAULT_FETCH_TIMEOUT_MS,
+        );
         let filledPayload = JSON.stringify(tools[toolName].payload)
             .replace(/\{\{([^}]+)\}\}/g, (match, p1) => {
                 const [key, ...defaultValue] = p1.split('=');
@@ -122,7 +124,8 @@ export async function initializeTools() {
         await Promise.all(Object.keys(ENV.PLUGINS_FUNCTION).map(async (plugin) => {
             let template = ENV.PLUGINS_FUNCTION[plugin];
             if (template.startsWith('http')) {
-                template = await fetch(template).then(r => r.text());
+                // 远程模板拉取：外部地址不可控，加超时避免启动期挂死
+                template = await fetchWithTimeout(template, { timeoutMs: 30_000 }).then(r => r.text());
             }
             try {
                 tools[plugin] = JSON.parse(template.trim());

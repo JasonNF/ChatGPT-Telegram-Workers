@@ -9,6 +9,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { OpenAICompatibleChatLanguageModel } from '@ai-sdk/openai-compatible';
 import { createXai } from '@ai-sdk/xai';
 import { isCfWorker } from '../telegram/utils/tg_utils';
+import { fetchWithTimeout, timeoutMsFromSeconds } from '../utils/fetch';
 
 export async function createLlmModel(model: string, context: AgentUserConfig): Promise<LanguageModelV3> {
     let [agent, model_id] = model.includes(':') ? model.trim().split(':') : [context.AI_CHAT_PROVIDER, model];
@@ -256,13 +257,18 @@ function mockParams({ modelId, config, provider, options }: MockParams) {
     }
 
     if (provider === 'google' || provider === 'gemini' || provider === 'vertex') {
-        options.safetySettings = [
-            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' },
-        ];
+        // 原实现在此处**无条件覆盖** safetySettings 为全 BLOCK_NONE，
+        // 导致用户即使在 GOOGLE_PROVIDER_OPTIONS 里改了阈值也无效。
+        // 现改为仅在调用方未提供时才填充默认值，让配置真正可用。
+        if (!options.safetySettings) {
+            options.safetySettings = [
+                { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+                { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+                { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+                { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+                { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' },
+            ];
+        }
         const usedBuildIn = new Set(GOOGLE_BUILDIN.filter(t => USE_GOOGLE_BUILDIN.includes(t)));
         if (SEARCH_GROUNDING) {
             usedBuildIn.add('googleSearch');
@@ -282,12 +288,20 @@ function mockParams({ modelId, config, provider, options }: MockParams) {
 }
 
 function mockFetch(modelId: string, context: AgentUserConfig, provider: string) {
+    // 统一出口：所有 provider 的 HTTP 请求都经过这里，
+    // 因此在此注入超时可一次性覆盖全部 LLM 调用。
+    // 配置项默认为 0（原语义「不限制」）会被 timeoutMsFromSeconds
+    // 归一为默认兜底值，避免请求无限挂起占死会话队列。
+    const timeoutMs = timeoutMsFromSeconds(
+        context.CHAT_COMPLETE_API_TIMEOUT || context.ALL_COMPLETE_API_TIMEOUT,
+    );
     return (url: RequestInfo | URL, options?: RequestInit) => {
         const body = JSON.parse(options?.body as string) || {};
         mockParams({ modelId, config: context, provider, options: body });
-        return fetch(url, {
+        return fetchWithTimeout(url, {
             ...options,
             body: JSON.stringify(body),
+            timeoutMs,
         });
     };
 }

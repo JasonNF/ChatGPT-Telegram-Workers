@@ -12,6 +12,7 @@ import { loadASRLLM, loadChatLLM, loadImageGen, loadTTSLLM, TTS_AGENTS } from '.
 import { loadHistory, requestCompletionsFromLLM } from '../../agent/chat';
 import { ENV } from '../../config/env';
 import { clearLog, getLog, log } from '../../log';
+import { fetchWithTimeout } from '../../utils/fetch';
 import { imageToBase64String } from '../../utils/image';
 import { convertAudio } from '../../utils/others/audio';
 import { createTelegramBotAPI } from '../api';
@@ -474,7 +475,8 @@ async function handleAudio(
     handleKey: string,
 ): Promise<Response | string> {
     const url = (params.content as FilePart[]).at(-1)?.data as string;
-    const audio = await fetch(url).then(b => b.blob());
+    // 语音文件下载：外部链路不可控，必须有超时上限，否则会话队列被永久占用
+    const audio = await fetchWithTimeout(url, { timeoutMs: 90_000 }).then(b => b.blob());
     const text = await asr(audio, context.USER_CONFIG);
     context.MIDDLE_CONTEXT.history.push({ role: 'user', content: text });
     const sender = streamSender.sender!;

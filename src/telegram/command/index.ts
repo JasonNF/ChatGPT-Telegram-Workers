@@ -7,6 +7,7 @@ import type { CommandHandler } from './types';
 import { ENV } from '../../config/env';
 import { log } from '../../log/logger';
 import { executeRequest, formatInput } from '../../plugins/template';
+import { fetchWithTimeout } from '../../utils/fetch';
 import { MessageSender, sendAction } from '../utils/send';
 import { loadChatRoleWithContext } from './auth';
 import {
@@ -145,7 +146,8 @@ export async function handleCommandMessage(message: Telegram.Message, context: W
         if (text === key || text.startsWith(`${key} `)) {
             let template = ENV.PLUGINS_COMMAND[key].value.trim();
             if (template.startsWith('http')) {
-                template = await fetch(template).then(r => r.text());
+                // 远程命令模板：外部地址不可控，加超时避免命令处理挂死
+                template = await fetchWithTimeout(template, { timeoutMs: 30_000 }).then(r => r.text());
             }
             // 由于插值位置较多，直接检索整个模板是否包含占位符
             if (key.trim() === text.trim() && (template.includes('{{DATA}}'))) {
