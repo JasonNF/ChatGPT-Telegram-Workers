@@ -329,10 +329,16 @@ export function OnStreamHander(sender: MessageSender | ChosenInlineSender, conte
         const data = context && needLog ? mergeLogMessages(text, context.USER_CONFIG) : text;
         log.info(`sent message ids: ${isMessageSender ? sender.context.sentMessageIds : sender.context.inline_message_id}`);
         expandParams.addQuote = addQuotePrerequisites && data.length > ENV.ADD_QUOTE_LIMIT;
+        const finalExpandParams = {
+            ...expandParams,
+            trailingCustomEmojiId: type === 'chat'
+                ? ENV.TELEGRAM_THINKING_CUSTOM_EMOJI_ID || undefined
+                : undefined,
+        };
         let maxFetchFailedTimes = 3;
         while (true) {
             try {
-                const finalResp = await sender.sendRichText(data, undefined, 'chat', expandParams);
+                const finalResp = await sender.sendRichText(data, undefined, 'chat', finalExpandParams);
                 if (finalResp.status === 429) {
                     const retryAfter = Number.parseInt(finalResp.headers.get('Retry-After') || '') ?? 10;
                     log.error(`Status 429, need wait: ${retryAfter}s`);

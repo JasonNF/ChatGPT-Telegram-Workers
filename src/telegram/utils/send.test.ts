@@ -42,7 +42,11 @@ describe('message sender editable thinking message', () => {
 
         await sender.sendTextWithEntities('🔴 .', entities);
         await sender.sendTextWithEntities('🔴 ..', entities);
-        await sender.sendRichText('收到，测试正常。');
+        await sender.sendRichText('收到，测试正常。', undefined, 'chat', {
+            addQuote: false,
+            quoteExpandable: false,
+            trailingCustomEmojiId: '5170338015255463564',
+        });
 
         expect(calls.map(call => call.method)).toEqual([
             'sendMessage',
@@ -63,7 +67,7 @@ describe('message sender editable thinking message', () => {
         expect(calls[2].body).toMatchObject({
             chat_id: 42,
             message_id: 777,
-            text: '收到，测试正常。',
+            text: '收到，测试正常。 ![🔴](tg://emoji?id=5170338015255463564)',
         });
         expect(sender.context.sentMessageIds).toEqual([777]);
     });

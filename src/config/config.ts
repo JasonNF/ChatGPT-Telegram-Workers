@@ -26,7 +26,7 @@ export class EnvironmentConfig {
     TELEGRAM_THINKING_LABEL = '';
     // 自定义 Emoji 不可用时的回退图标
     TELEGRAM_THINKING_FALLBACK_EMOJI = '🔴';
-    // Telegram custom_emoji_id；留空时使用上述回退图标
+    // Telegram custom_emoji_id；用于思考动画和最终回复尾标，留空时思考动画使用上述回退图标
     TELEGRAM_THINKING_CUSTOM_EMOJI_ID = '';
     // 默认消息模式
     DEFAULT_PARSE_MODE = 'MarkdownV2';

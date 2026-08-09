@@ -277,6 +277,7 @@ export function addExpandable(text: string, quoteExpandable: boolean): string {
 export interface ExpandParams {
     addQuote: boolean;
     quoteExpandable: boolean;
+    trailingCustomEmojiId?: string;
 }
 
 function quoteMessage(text: string, addQuote: boolean) {

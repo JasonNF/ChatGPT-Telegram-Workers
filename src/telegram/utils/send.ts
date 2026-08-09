@@ -629,8 +629,20 @@ export class ChosenInlineSender {
 
 function renderMessage(parse_mode: Telegram.ParseMode | null, message: string, expandParams?: ExpandParams): string[] {
     const chunkMessage = chunkDocument(message);
-    if (parse_mode === 'MarkdownV2') {
-        return chunkMessage.map(lines => escape(lines, expandParams));
+    const rendered = parse_mode === 'MarkdownV2'
+        ? chunkMessage.map(lines => escape(lines, expandParams))
+        : chunkMessage;
+    const customEmojiId = expandParams?.trailingCustomEmojiId?.trim();
+    if (!customEmojiId || !/^\d+$/.test(customEmojiId) || rendered.length === 0) {
+        return rendered;
     }
-    return chunkMessage;
+    const suffix = parse_mode === 'MarkdownV2'
+        ? ` ![🔴](tg://emoji?id=${customEmojiId})`
+        : parse_mode === 'HTML'
+            ? ` <tg-emoji emoji-id="${customEmojiId}">🔴</tg-emoji>`
+            : '';
+    if (suffix) {
+        rendered[rendered.length - 1] += suffix;
+    }
+    return rendered;
 }
