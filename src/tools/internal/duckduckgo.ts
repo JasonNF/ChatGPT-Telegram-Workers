@@ -1,61 +1,58 @@
-/* eslint-disable unused-imports/no-unused-vars */
 import type { ToolResult } from '../types';
 import { log } from '../../log/logger';
 
 // original repo: https://github.com/navetacandra/ddg
-async function getJS(query: string, signal?: AbortSignal | undefined) {
-    const html = await fetch(
-        `https://duckduckgo.com/?q=${encodeURIComponent(query)}`,
-        { signal },
-    ).then(res => res.text());
-    const url = /"(https:\/\/links\.duckduckgo\.com\/d\.js[^">]+)">/.exec(html)?.[1];
-    if (!url)
-        throw new Error('Failed to get JS URL');
-    return {
-        url,
-        path: /\/d\.js.*/.exec(url)?.[0],
-        vqd: /vqd=([^&]+)/.exec(url)?.[1],
-    };
-};
-
 function cleanResult(result: string) {
-    return result.replace(/&nbsp;/g, '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&apos;/g, '\'').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+    return result
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&#(\d+);/g, (_match, code) => String.fromCodePoint(Number(code)))
+        .replace(/&#x([\da-f]+);/gi, (_match, code) => String.fromCodePoint(Number.parseInt(code, 16)))
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;|&#39;/g, '\'')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/\s+/g, ' ')
+        .trim();
 }
 
-async function regularSearch(path: string, max_length: number, signal?: AbortSignal) {
-    const js = await fetch(`https://links.duckduckgo.com${path}`, { signal }).then(res => res.text());
-    const result = /DDG\.pageLayout\.load\('d',?\s?(\[.+\])?\);/.exec(js);
-    let data;
-    let next = '';
-    if (result?.[1]) {
-        try {
-            data = JSON.parse(result[1]);
-            next = (data.filter((d: any) => d.n) ?? [])?.[0]?.n;
-        } catch (e) {
-            throw new Error(`Failed parsing from DDG response`);
-        }
-    } else {
-        data = [];
+function resultUrl(href: string) {
+    const decodedHref = cleanResult(href);
+    try {
+        const url = new URL(decodedHref.startsWith('//') ? `https:${decodedHref}` : decodedHref);
+        return url.searchParams.get('uddg') || url.toString();
+    } catch {
+        return decodedHref;
     }
-    data = data.filter((d: any) => !d.n).map((item: any) => ({
-        title: cleanResult(item.t),
-        url: item.u,
-        // domain: item.i,
-        description: cleanResult(item.a),
-        // icon: `https://external-content.duckduckgo.com/ip3/${item.i}.ico`,
-    }));
-    if (data.length < max_length && next) {
-        data.push(...(await regularSearch(next, max_length - data.length, signal)));
-    }
-
-    return data;
 }
 
-async function search(query: string, max_length = 12, signal?: AbortSignal) {
-    const { path } = await getJS(query, signal);
-    if (!path)
-        throw new Error('Failed to get JS URL');
-    return (await regularSearch(path, max_length, signal)).slice(0, max_length);
+export function parseDuckDuckGoHtml(html: string, maxLength = 12) {
+    const linkMatches = [...html.matchAll(/<a[^>]*class=["'][^"']*result__a[^"']*["'][^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)];
+    const snippetMatches = [...html.matchAll(/<a[^>]*class=["'][^"']*result__snippet[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi)];
+
+    return linkMatches
+        .slice(0, maxLength)
+        .map((match, index) => ({
+            title: cleanResult(match[2]),
+            url: resultUrl(match[1]),
+            description: cleanResult(snippetMatches[index]?.[1] || ''),
+        }))
+        .filter(item => item.title && item.url);
+}
+
+export async function search(query: string, maxLength = 12, signal?: AbortSignal) {
+    const response = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (X11; Linux aarch64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
+        },
+        signal,
+    });
+    if (!response.ok || response.status === 202) {
+        throw new Error(`DuckDuckGo search failed with HTTP ${response.status}`);
+    }
+    return parseDuckDuckGoHtml(await response.text(), maxLength);
 }
 
 export default {

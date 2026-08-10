@@ -235,18 +235,34 @@ interface MockParams {
     options: Record<string, any>;
 }
 
+export function appendOAILikeRelayTools(
+    options: Record<string, any>,
+    modelId: string,
+    relayTools: Record<string, string[]>,
+    enabledRelayTools: string[],
+) {
+    const relayKey = Object.keys(relayTools).find(key => modelId.includes(key));
+    if (!relayKey || enabledRelayTools.length === 0) {
+        return;
+    }
+
+    const nativeTools = relayTools[relayKey]
+        .filter(toolName => enabledRelayTools.includes(toolName))
+        .map(toolName => ({ [toolName]: {} }));
+    if (nativeTools.length === 0) {
+        return;
+    }
+
+    const existingTools = Array.isArray(options.tools) ? options.tools : [];
+    options.tools = [...existingTools, ...nativeTools];
+}
+
 function mockParams({ modelId, config, provider, options }: MockParams) {
     const extraParams = (config[`${provider.toUpperCase()}_API_EXTRA_PARAMS` as keyof AgentUserConfig] as Record<string, Record<string, any>>) || {};
     const { PARAMS_MODIFIER: modifier, OAILIKE_RELAY_TOOLS: relayTools, USE_OAILIKE_RELAY_TOOLS: relayToolsList, GOOGLE_BUILDIN, USE_GOOGLE_BUILDIN, SEARCH_GROUNDING } = config;
 
     if (provider === 'oailike') {
-        const relayKey = Object.keys(relayTools).find(key => modelId.includes(key));
-        if (relayKey && relayToolsList.length > 0) {
-            options.tools = relayTools[relayKey].filter(t => relayToolsList.includes(t)).map(t => ({
-                type: 'function',
-                function: { name: t },
-            }));
-        }
+        appendOAILikeRelayTools(options, modelId, relayTools, relayToolsList);
     }
 
     if (provider === 'openai') {
