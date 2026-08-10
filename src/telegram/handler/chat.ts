@@ -643,7 +643,7 @@ function mergeLogMessages(text: string, config: AgentUserConfig | undefined): st
     if (ENV.LOG_POSITION_ON_TOP) {
         return `${footer}\n\n${SEGMENTATION_MARK}\n${content}`;
     }
-    return `${content}\n${SEGMENTATION_MARK}\n${footer}`;
+    return `${content}\n\n${SEGMENTATION_MARK}\n${footer}`;
 }
 
 // v5: Breaking change in file type extraction logic.

@@ -92,6 +92,8 @@ GROUP_CHAT_BOT_ENABLE = 'true'
 #SHOW_REPLY_BUTTON = false
 ## 而外引用消息开关
 #EXTRA_MESSAGE_CONTEXT = 'false'
+## 隐藏模型思考/推理摘要，仅显示最终正文
+#SHOW_THINKING_TEXT = 'false'
 ## 在回复底部显示紧凑、渐进式模型耗时与 Token 尾注
 #ENABLE_SHOWINFO = 'true'
 #SHOW_PARTS = 'model,model_time,first_chunk_time,token'

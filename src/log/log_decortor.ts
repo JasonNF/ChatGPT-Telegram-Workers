@@ -144,7 +144,7 @@ export function getLog(context: AgentUserConfig, { onlyModel = false, isParagrap
 
         return footerLines
             .filter(Boolean)
-            .map(line => `>\`${line.replaceAll('`', '\'').replaceAll('\n', ' ')}\``)
+            .map(line => `\`${line.replaceAll('`', '\'').replaceAll('\n', ' ')}\``)
             .join('\n');
     }
 

@@ -45,9 +45,10 @@ describe('message sender editable thinking message', () => {
         await sender.sendTextWithEntities('🔴 ..', entities);
         await sender.sendRichText([
             `收到，测试正常。${TRAILING_CUSTOM_EMOJI_ANCHOR}`,
+            '',
             SEGMENTATION_MARK,
-            '>`gpt-5.6-terra 4.0s ttfc 3.6s`',
-            '>`↑ 139 (cache 0 0.0%) · ↓ 125 (think 88)`',
+            '`gpt-5.6-terra 4.0s ttfc 3.6s`',
+            '`↑ 139 (cache 0 0.0%) · ↓ 125 (think 88)`',
         ].join('\n'), undefined, 'chat', {
             addQuote: false,
             quoteExpandable: false,
@@ -76,8 +77,8 @@ describe('message sender editable thinking message', () => {
             text: [
                 '收到，测试正常。 ![🔴](tg://emoji?id=5170338015255463564)',
                 '',
-                '>`gpt-5.6-terra 4.0s ttfc 3.6s`',
-                '>`↑ 139 (cache 0 0.0%) · ↓ 125 (think 88)`',
+                '`gpt-5.6-terra 4.0s ttfc 3.6s`',
+                '`↑ 139 (cache 0 0.0%) · ↓ 125 (think 88)`',
             ].join('\n'),
         });
         expect(sender.context.sentMessageIds).toEqual([777]);

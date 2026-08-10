@@ -33,8 +33,8 @@ describe('compact Telegram log footer', () => {
         }]);
 
         expect(getLog(config)).toBe([
-            '>`gpt-5.6-terra 14.0s ttfc 14.0s`',
-            '>`↑ 7.3k (cache 6.5k 89.7%) · ↓ 216 (think 40)`',
+            '`gpt-5.6-terra 14.0s ttfc 14.0s`',
+            '`↑ 7.3k (cache 6.5k 89.7%) · ↓ 216 (think 40)`',
         ].join('\n'));
     });
 
@@ -55,19 +55,19 @@ describe('compact Telegram log footer', () => {
         logSingleton.set(config, [record]);
 
         vi.setSystemTime(2_000);
-        expect(getLog(config)).toBe('>`gpt-5.6-terra 1.0s`');
+        expect(getLog(config)).toBe('`gpt-5.6-terra 1.0s`');
 
         record.first_chunk_time = 600;
         vi.setSystemTime(2_500);
-        expect(getLog(config)).toBe('>`gpt-5.6-terra 1.5s ttfc 0.6s`');
+        expect(getLog(config)).toBe('`gpt-5.6-terra 1.5s ttfc 0.6s`');
 
         Object.assign(record, {
             end_time: 3_000,
             tokens: { prompt: 120, completion: 30 },
         });
         expect(getLog(config)).toBe([
-            '>`gpt-5.6-terra 2.0s ttfc 0.6s`',
-            '>`↑ 120 · ↓ 30`',
+            '`gpt-5.6-terra 2.0s ttfc 0.6s`',
+            '`↑ 120 · ↓ 30`',
         ].join('\n'));
     });
 
@@ -97,9 +97,9 @@ describe('compact Telegram log footer', () => {
         ]);
 
         expect(getLog(config)).toBe([
-            '>`first-model 1.0s ttfc 0.5s`',
-            '>`final-model 1.5s ttfc 0.3s`',
-            '>`↑ 1.5k (cache 0 0.0%) · ↓ 30 (think 0)`',
+            '`first-model 1.0s ttfc 0.5s`',
+            '`final-model 1.5s ttfc 0.3s`',
+            '`↑ 1.5k (cache 0 0.0%) · ↓ 30 (think 0)`',
         ].join('\n'));
     });
 });
